@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2023, Ashot Apakian ver 276
+// 2008-2023, Ashot Apakian ver 277
 /*-----------------------------------------------------------------------*/
 /******************************************************
  codeblocks: build options
@@ -6967,6 +6967,64 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaNetWebsocketServerPktRead         (_websocketserver*websocketserver,_websockethdr*websockethdr,VP data);
  B aaNetWebsocketServerPktWrite        (_websocketserver*websocketserver,B oc,B ff,H bytes,VP data);
  B aaNetWebsocketServerPktWritef       (_websocketserver*websocketserver,B oc,B ff,VP fmt,...);
+
+
+/*-----------------------------------------------------------------------*/
+
+ structure
+ {
+ H li;
+ H num;
+ H left;
+ B is_last;
+ B type;
+ B type_ch;
+ G arg;
+ H chars;
+ B buf[_8K];
+ }
+ _rednetline;
+
+
+
+ structure
+ {
+ H magic;
+ H self_index;
+ H ustage;
+ H stage;
+ B is_ready;
+ B is_prompt;
+ H sip;
+ W sport;
+ H ip;
+ W port;
+ B host[129];
+ _tcpcallunit call;
+ H phaze;
+ _ministack rleft_stack;
+ H rleft;
+ B rtype;
+ G rarg;
+ H rchars;
+ B rbuf[_8K];
+ H li;
+ H num;
+ _queunit que;
+ H que_in_waiting;
+ Q ms,to;
+ B user_data[_32K];
+ }
+ _rednet;
+
+
+
+ B aaRedNetNew                         (_rednet*rednet,H sip,W sport,VP host,H ip,W port);
+ B aaRedNetDelete                      (_rednet*rednet);
+ B aaRedNetWritef                      (_rednet*rednet,VP fmt,...);
+ B aaRedNetYield                       (_rednet*rednet);
+ B aaRedNetLineRead                    (_rednet*rednet,_rednetline*rednetline);
+ B aaRedNetLinePeek                    (_rednet*rednet,H index,_rednetline*rednetline);
 
 
 

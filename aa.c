@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2023, Ashot Apakian ver 276
+// 2008-2023, Ashot Apakian ver 277
 /*-----------------------------------------------------------------------*/
  #include "aa.h"
 
@@ -53,7 +53,7 @@ linker options
  H aa_last_line_executed               =__LINE__;
  H aa_user_line_executed               =0;
 
- #define aa_VERSION                    276
+ #define aa_VERSION                    277
 
 /*-----------------------------------------------------------------------*/
 
@@ -93094,6 +93094,260 @@ whatever is possible
 
 
 /*-----------------------------------------------------------------------*/
+
+
+
+
+
+
+
+
+
+ B aaRedNetNew                         (_rednet*rednet,H sip,W sport,VP host,H ip,W port)
+ {
+ if(rednet==NULL) { return RET_MISSINGPARM; }
+ aaMemoryFill(rednet,sizeof(_rednet),0);
+ rednet->magic=aaHPP(aaRedNetNew);
+ rednet->stage=0;
+ rednet->is_prompt=NO;
+ rednet->sip=sip;
+ rednet->sport=sport;
+ rednet->ip=ip;
+ rednet->port=port;
+ if(host) { aaStringCopy(rednet->host,host); }
+ aaMiniStackNew(&rednet->rleft_stack);
+ aaQueCreate(&rednet->que.handle);
+ aaQueStatus(rednet->que.handle,&rednet->que.status);
+ return RET_YES;
+ }
+
+
+
+
+ B aaRedNetDelete                      (_rednet*rednet)
+ {
+ if(rednet==NULL) { return RET_MISSINGPARM; }
+ if(rednet->magic!=aaHPP(aaRedNetNew)) { return RET_NOTINITIALIZED; }
+ aaNetTcpCallDestroy(rednet->call.handle);
+ aaQueDestroy(rednet->que.handle);
+ aaMemoryFill(rednet,sizeof(_rednet),0);
+ return RET_YES;
+ }
+
+
+
+
+ B aaRedNetWritef                      (_rednet*rednet,VP fmt,...)
+ {
+ B ret;
+ aaVargsf32K(fmt);
+ if(rednet==NULL) { return RET_MISSINGPARM; }
+ if(rednet->magic!=aaHPP(aaRedNetNew)) { return RET_NOTINITIALIZED; }
+ if(rednet->is_ready!=YES) { return RET_NOTREADY; }
+ if((ret=aaNetRedisPacketWritef(rednet->call.handle,"%s",str32k.buf))!=YES) { oops; return ret; }
+ aaNetTcpCallStatus(rednet->call.handle,&rednet->call.status);
+ rednet->stage=1000;
+ //aaDebugf("rednetWritef %s",str32k.buf);
+ return RET_YES;
+ }
+
+
+
+
+
+ B aaRedNetYield                       (_rednet*rednet)
+ {
+ B ret;
+ H go,to;
+ //B out[_32K];
+ H rlft;//,ip;
+ _rednetline pili;
+
+ if(rednet==NULL) { return RET_MISSINGPARM; }
+ if(rednet->magic!=aaHPP(aaRedNetNew)) { return RET_NOTINITIALIZED; }
+ to=3;
+ go=0;
+ while(1)
+  {
+  if((go++)>=to) { break; }
+  switch(rednet->stage)
+   {
+   case 0:
+   rednet->stage=100;
+   break;
+
+   case 100:
+   //ip=aaLoopBack;
+   //aaNetIpFromString("192.168.1.109",&ip);
+   //aaNote(0,"ip=%u",ip);
+   //B aaNetTcpCallCreate                  (HP handle,H sip,W sport,VP host,H ip,W port,B tls);
+
+   //if(aaNetTcpCallCreate(&rednet->call.handle,0,0,0,ip,6379,0)!=YES) oof;
+   if(aaNetTcpCallCreate(&rednet->call.handle,rednet->sip,rednet->sport,rednet->host,rednet->ip,rednet->port,0)!=YES) oof;
+   aaNetTcpCallStatus(rednet->call.handle,&rednet->call.status);
+   rednet->stage=150;
+   break;
+
+
+   case 150:
+   aaNetTcpCallStatus(rednet->call.handle,&rednet->call.status);
+   if(rednet->call.status.is_connected!=YES) { break; }
+   //app.rednety_ready_count++;
+   if(0) { aaDebugf("rednety %i ready",rednet->self_index); }
+   rednet->is_ready=YES;
+   rednet->stage=160;
+   break;
+
+
+   case 160:
+   aaNetTcpCallStatus(rednet->call.handle,&rednet->call.status);
+   go=1000;
+   rednet->is_prompt=YES;
+   rednet->stage=1000;
+   break;
+
+
+   case 666:
+   break;
+
+
+   case 1000:
+   //aaNetTcpCallStatus(rednet->call.handle,&rednet->call.status);
+   //if(rednet->call.status.rcve_bytes==0) { break; }
+
+   if((ret=aaNetRedisPacketRead(rednet->call.handle,&rednet->rtype,&rednet->rarg,&rednet->rchars,sizeof(rednet->rbuf),rednet->rbuf))!=YES)
+    {
+    if(ret==RET_FAILED)   { rednet->stage=666; break; }
+    if(ret!=RET_NOTREADY) { oops; }
+    break;
+    }
+   aaNetTcpCallStatus(rednet->call.handle,&rednet->call.status);
+
+   if(rednet->rchars>=sizeof(pili.buf)) { aaNote(0,"rchars=%i buf=%i",rednet->rchars,sizeof(pili.buf)); }
+
+   pili.type_ch=0;
+
+   switch(rednet->rtype)
+    {
+    default: aaNote(0,"rtype=%i",rednet->rtype); break;
+
+    case aa_REDISTYPE_Simple:    if(rednet->rleft>0) { rednet->rleft--; }
+    pili.type_ch='s';
+    break;
+
+    case aa_REDISTYPE_Error:    if(rednet->rleft>0) { rednet->rleft--; }
+    pili.type_ch='e';
+    break;
+
+    case aa_REDISTYPE_Integer:    if(rednet->rleft>0) { rednet->rleft--; }
+    pili.type_ch='i';
+    break;
+
+    case aa_REDISTYPE_Bulk:    if(rednet->rleft>0) { rednet->rleft--; }
+    pili.type_ch='b';
+    break;
+
+    case aa_REDISTYPE_Multi:    if(rednet->rleft>0) { rednet->rleft--; }
+    pili.type_ch='m';
+    if(rednet->rleft>0)  { if((ret=aaMiniStackPushDword(&rednet->rleft_stack,rednet->rleft))!=YES) { oops; }  }
+    rednet->rleft=(H)rednet->rarg;
+    break;
+
+    case aa_REDISTYPE_Null:    if(rednet->rleft>0) { rednet->rleft--; }
+    pili.type_ch='n';
+    break;
+    }
+
+   //pili.li=rednet->num;
+   pili.num=rednet->num;
+   pili.li=rednet->li;
+   pili.left=rednet->rleft;
+   pili.type=rednet->rtype;
+   pili.arg=rednet->rarg;
+   pili.chars=rednet->rchars;
+   pili.buf[0]=NULL_CHAR;
+   if(pili.chars>0) { aaStringNCopy(pili.buf,rednet->rbuf,pili.chars,YES); }
+   pili.is_last=NO;
+   if(rednet->rleft==0&&rednet->rleft_stack.height==0) { pili.is_last=YES; }
+
+   if(pili.type!=aa_REDISTYPE_Multi||pili.is_last==YES)
+    {
+    aaQueWrite(rednet->que.handle,sizeof(_rednetline),&pili);
+    aaQueStatus(rednet->que.handle,&rednet->que.status);
+    rednet->que_in_waiting=rednet->que.status.bytes/sizeof(_rednetline);
+    rednet->li++;
+    }
+
+   if(rednet->rleft==0)
+    {
+    if(rednet->rleft_stack.height!=0)
+     {
+     if((ret=aaMiniStackPopDword(&rednet->rleft_stack,&rlft))!=YES) { oops; }
+     rednet->rleft=rlft;
+     }
+    else
+     {
+     rednet->num++;
+     rednet->li=0;
+     rednet->stage=160;
+     }
+    break;
+    }
+   break;
+   }
+  }
+ return RET_YES;
+ }
+
+
+
+
+ B aaRedNetLineRead                    (_rednet*rednet,_rednetline*rednetline)
+ {
+ B ret;
+ if(rednet==NULL) { return RET_MISSINGPARM; }
+ if(rednet->magic!=aaHPP(aaRedNetNew)) { return RET_NOTINITIALIZED; }
+ aaQueStatus(rednet->que.handle,&rednet->que.status);
+ rednet->que_in_waiting=rednet->que.status.bytes/sizeof(_rednetline);
+ if(rednet->que_in_waiting==0) { return RET_NOTREADY; }
+ if((ret=aaQueRead(rednet->que.handle,sizeof(_rednetline),rednetline))!=YES) { oops; return ret; }
+ aaQueStatus(rednet->que.handle,&rednet->que.status);
+ rednet->que_in_waiting=rednet->que.status.bytes/sizeof(_rednetline);
+ return RET_YES;
+ }
+
+
+
+
+ B aaRedNetLinePeek                    (_rednet*rednet,H index,_rednetline*rednetline)
+ {
+ B ret;
+ if(rednet==NULL) { return RET_MISSINGPARM; }
+ if(rednet->magic!=aaHPP(aaRedNetNew)) { return RET_NOTINITIALIZED; }
+ aaQueStatus(rednet->que.handle,&rednet->que.status);
+ rednet->que_in_waiting=rednet->que.status.bytes/sizeof(_rednetline);
+ if(rednet->que_in_waiting==0)     { return RET_NOTREADY; }
+ if(index>=rednet->que_in_waiting) { return RET_NOTREADY; }
+ if((ret=aaQuePeek(rednet->que.handle,index*sizeof(_rednetline),sizeof(_rednetline),rednetline))!=YES) { oops; return ret; }
+ aaQueStatus(rednet->que.handle,&rednet->que.status);
+ rednet->que_in_waiting=rednet->que.status.bytes/sizeof(_rednetline);
+ return RET_YES;
+ }
+
+
+
+ /*
+ B pinkTimerSet                        (_pink*pink,Q timeout)
+ {
+ if(pink==NULL) { return RET_MISSINGPARM; }
+ if(pink->magic!=aaHPP(pinkNew)) { return RET_NOTINITIALIZED; }
+ pink->ms=aaMsRunning();
+ pink->to=timeout;
+ return RET_YES;
+ }
+ */
+
+
 
 
 
