@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2023, Ashot Apakian
+// 2008-2023, Ashot Apakian ver 276
 /*-----------------------------------------------------------------------*/
  #include "aa.h"
 
@@ -21,6 +21,8 @@
 -ffast-math
 -mfpmath=sse
 -msse2
+linker options
+-Wl,--stack,4194304
 */
 
 /**
@@ -32,7 +34,7 @@
 
  H aa_hyper_parm_0=32;   // aa_jsonSystemDecode
  H aa_hyper_parm_1=1;    // aaShellYield
- H aa_hyper_parm_2=4;    // aaShellRead
+ H aa_hyper_parm_2=3;    // aaShellRead was 4
  H aa_hyper_parm_3=2;    // aaJsonStatus , number of aa_jsonSystemDecode's called
 
 
@@ -51,7 +53,7 @@
  H aa_last_line_executed               =__LINE__;
  H aa_user_line_executed               =0;
 
- #define aa_VERSION                    275
+ #define aa_VERSION                    276
 
 /*-----------------------------------------------------------------------*/
 
@@ -349,6 +351,7 @@
  T BOOL   (WINAPI *getOpenFileName)    (OPENFILENAME*);
  T DWORD  (NTAPI  *NTQueryInformationProcess) (HANDLE,DWORD,PVOID,DWORD,PDWORD);
  //T INT    (WINAPI *wsaSetSocketSecurity) (SOCKET,SOCKET_SECURITY_SETTINGS*,ULONG,LPWSAOVERLAPPED,LPWSAOVERLAPPED_COMPLETION_ROUTINE);
+ T BOOL   (WINAPI *getCurrentThreadStackLimits) (PULONG_PTR,PULONG_PTR);
 
 
 
@@ -498,7 +501,9 @@
  getProcessFileName GetProcessFileName;
  getOpenFileName GetOpenFileName;
  NTQueryInformationProcess ntQueryInformationProcess;
+ getCurrentThreadStackLimits GetCurrentThreadStackLimits;
 
+ //T BOOL (*_gctsl)(PULONG_PTR,PULONG_PTR);
 // wsaSetSocketSecurity WSASetSocketSecurity;
 
  Q perf_frequency;
@@ -8917,6 +8922,9 @@ fail:
  if((aa.core_system.ntQueryInformationProcess=(NTQueryInformationProcess)GetProcAddress(aa.core_system.ntdll_module,"NtQueryInformationProcess"))==NULL) { oof; return RET_FAILED; }
   ///if((aa.core_system.WSASetSocketSecurity=(wsaSetSocketSecurity)GetProcAddress(aa.core_system.wpu_module,"WSASetSocketSecurity"))==NULL) { oof; return RET_FAILED; }
 
+ if((aa.core_system.GetCurrentThreadStackLimits=(getCurrentThreadStackLimits)GetProcAddress(aa.core_system.kernel_module,"GetCurrentThreadStackLimits"))==NULL) { oof; return RET_FAILED; }
+
+
  aa_CoreSystemLogStateSet(YES);
  aaTimeOfLastCompile(aa.core_system.built);
  logg("aaBoost v%i Built: %s %s %s",aa.core_system.version,aa.core_system.built,aa.core_system.in_debugger?"*DEBUGGER RUNNING*":" ",aa.core_system.built,aa.core_system.in_remote_debugger?"*REMOTE DEBUGGER RUNNING*":" ",aaBoolStrings(aaIsProfiling(),"*PROFILING ENABLED* ",""));
@@ -10426,7 +10434,7 @@ fail:
    {
    #if 1
    aa.core_system.note_killer_id=SetTimer(0,0,aaMins(10)/*aaHours(10)*/,(TIMERPROC)aaNoteKillerProc);
-   r=MessageBox(NULL,(CP)str4k.buf,"aaBoost oops",MB_OK|MB_ICONEXCLAMATION|MB_SYSTEMMODAL);
+   r=MessageBox(NULL,(CP)str4k.buf,"aaBoost oopr",MB_OK|MB_ICONEXCLAMATION|MB_SYSTEMMODAL);
    if(r==0) { }///aaQuit(); aaCrash(1); }
    if(aa.core_system.note_killer_id!=0) { KillTimer(0,aa.core_system.note_killer_id);  }
    aa.core_system.note_killer_id=0;
@@ -14122,14 +14130,30 @@ redo:
  #endif
  if(txt==NULL) { return RET_BADPARM; }
  aaTimeFromUnixTime(&st,utcex/1000000LL);
- st.ms=(Y)(((utcex%1000000LL)/1000LL)%1000LL);
+ if(doms) { st.ms=(Y)(((utcex%1000000LL)/1000LL)%1000LL); }
+ else     { st.ms=0; }
  aaTimeToText(&st,txt,doms);
- if(doms) {  aaStringCopyf(txt,"%s:%03I64d",txt,utcex%1000LL); }
+ //if(doms) {  aaStringCopyf(txt,"%s:%03I64d",txt,utcex%1000LL); }
  bp=(BP)txt;
  bp[10]='-';
  return RET_YES;
  }
 
+
+
+
+ B aaTimeUtcExToTime                   (Q utcex,_systime*systime)
+ {
+ _systime st;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(systime==NULL) { return RET_BADPARM; }
+ aaTimeFromUnixTime(&st,utcex/1000000LL);
+ st.ms=(Y)(((utcex%1000000LL)/1000LL)%1000LL);
+ aaTimeCopy(systime,&st);
+ return RET_YES;
+ }
 
 
 
@@ -16342,6 +16366,35 @@ redo:
  return RET_YES;
  }
 
+
+
+
+ B aaMemoryStackSizeGet                (HP bytes)
+ {
+ ULONG_PTR LowLimit;
+ ULONG_PTR HighLimit;
+ H ll,hl,by;
+ NT_TIB*tib;
+ MEMORY_BASIC_INFORMATION mbi;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(bytes) { *bytes=0; }
+ tib=(NT_TIB*)NtCurrentTeb();
+ HighLimit=(ULONG_PTR)tib->StackBase;
+ if(VirtualQuery(tib->StackLimit,&mbi,sizeof(mbi)))
+  {
+  LowLimit=(ULONG_PTR)mbi.AllocationBase;
+  hl=HighLimit;
+  ll=LowLimit;
+  by=hl-ll;
+  by=(by/_64K)*_64K;
+  if(bytes) { *bytes=by; }
+  return RET_YES;
+  }
+ return RET_FAILED;
+ }
 
 
 /*-----------------------------------------------------------------------*/
@@ -34550,7 +34603,7 @@ aaStringAppendCopyf(txt,0,"%-25s ","aa_stage=%u",aa_stage);
  for(i=0;i<chars;i++)
   {
   if(s[i]=='.'&&allowfloat==YES&&dotcount==0) { dotcount=1; continue; }
-  if(allowfloat==YES&&s[i]=='e'&&gote==0) { gote=1; continue; }
+  if(allowfloat==YES&&(s[i]=='e'||s[i]=='E')&&gote==0) { gote=1; continue; }
   if(s[i]=='-'&&allowfloat==YES&&i!=0&&gote!=0) { continue; }
   if((s[i]=='+'||s[i]=='-')&&allowsign==YES&&i==0) { continue; }
   if(s[i]<'0'||s[i]>'9') { return RET_NO; }
@@ -38550,7 +38603,7 @@ static const htmlentity_t ent[] =
 
 
 
- B aaStringDollars                     (VP str,B adddollar,Q cents)
+ B aaStringDollars                     (VP str,B adddollar,B docents,Q cents)
  {
  B etc[_2K];
 
@@ -38559,8 +38612,16 @@ static const htmlentity_t ent[] =
  #endif
  if(str==NULL) { return RET_BADPARM; }
  aaStringComafy(etc,cents/100LL);
- if(adddollar) { aaStringCopyf(str,"$%s.%02I64d",etc,cents%100LL); }
- else          { aaStringCopyf(str,"%s.%02I64d",etc,cents%100LL);  }
+ if(docents)
+  {
+  if(adddollar) { aaStringCopyf(str,"$%s.%02I64d",etc,cents%100LL); }
+  else          { aaStringCopyf(str,"%s.%02I64d",etc,cents%100LL);  }
+  }
+ else
+  {
+  if(adddollar) { aaStringCopyf(str,"$%s",etc); }
+  else          { aaStringCopyf(str,"%s",etc);  }
+  }
  return RET_YES;
  }
 
@@ -53058,7 +53119,7 @@ oof;
    //if(cs.is_ready!=YES)   {   break;   }
    if(cs.is_connected!=YES) { break; }
    if(cs.is_closed)         { break; }
-   if(websocket->is_incoming==YES) //---- incoming calls
+   if(websocket->is_incoming==YES) //---- incoming calls !!!!!!!!!!!!!!!!!!!!!
     {
     ///aaDebugf("incoming phz=%i",websocket->phaze);
     switch(websocket->phaze)
@@ -53158,7 +53219,7 @@ oof;
      break;
      }
     }
-   else                     //-------- outgoing calls
+   else                     //-------- outgoing calls !!!!!!!!!
     {
 //    aaDebugf("outgming phz=%i",websocket->phaze);
     switch(websocket->phaze)
@@ -61339,7 +61400,7 @@ oof;
 
 
 
-
+/*
  B aaTorKill                           (_tor*tor,H index)
  {
  B ret;
@@ -61385,7 +61446,7 @@ oof;
  return RET_YES;
  }
 
-
+*/
 
 
 //TASKKILL /F /IM tor.exe /T
@@ -61483,6 +61544,142 @@ oof;
   }
  return RET_NOTFOUND;
  }
+
+
+
+
+
+ B aaTorKiller                         (W cport,W sport)
+ {
+ B ret;
+ _processlist pli;
+ H i,at,pos;
+ B match[_1K];
+ Q ms;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if((ret=aaProcessListGather(&pli,0))!=YES) { oops; }
+ for(i=0;i<pli.entries;i++)
+  {
+  if(aaStringICompare(pli.entry[i].exe_file,"tor.exe",0)!=YES) { continue; }
+
+  if(sport!=0)
+   {
+   aaStringCopyf(match,"--SocksPort %i",sport);
+   if(aaStringFindFirstIString(pli.entry[i].cmd_line,0,match,0,&pos)!=YES) { continue; }
+   }
+  if(cport!=0)
+   {
+   aaStringCopyf(match,"--ControlPort %i",cport);
+   if(aaStringFindFirstIString(pli.entry[i].cmd_line,0,match,0,&pos)!=YES) { continue; }
+   }
+  if(0) { aaDebugf("%i/%i %i %s",i,pli.entries,pli.entry[i].process_id,pli.entry[i].cmd_line); }
+  if((ret=aaProcessTerminateByPid(pli.entry[i].process_id,0))!=YES) { oops; continue; }
+  at=0;
+  while(1)
+   {
+   if(at>=10) { oof; break; }
+   if(aaProcessIsRunningByPid(pli.entry[i].process_id)==RET_NO) { break; }
+   ms=aaMsRunning();
+   while(1) { if((aaMsRunning()-ms)>=150) { break; } }
+   at++;
+   }
+  aaProcessListRelease(&pli);
+  return RET_YES;
+  }
+ aaProcessListRelease(&pli);
+ return RET_FAILED;
+ }
+
+
+
+
+ B aaTorChangerNew                     (_torchanger*torchanger,W cport)
+ {
+ if(torchanger==NULL) { return RET_MISSINGPARM; }
+ if(cport<1024)       { return RET_BADPARM; }
+ aaMemoryFill(torchanger,sizeof(_torchanger),0);
+ torchanger->magic=aaHPP(aaTorChangerNew);
+ torchanger->cport=cport;
+ torchanger->stage=100;
+ return RET_YES;
+ }
+
+
+ B aaTorChangerDelete                  (_torchanger*torchanger)
+ {
+ if(torchanger==NULL) { return RET_MISSINGPARM; }
+ if(torchanger->magic!=aaHPP(aaTorChangerNew)) { return RET_NOTINITIALIZED; }
+ if(torchanger->call.handle!=0)
+  {
+  aaNetTcpCallDestroy(torchanger->call.handle);
+  torchanger->call.handle=0;
+  }
+ aaMemoryFill(torchanger,sizeof(_torchanger),0);
+ return RET_YES;
+ }
+
+
+
+ B aaTorChangerYield                   (_torchanger*torchanger)
+ {
+ B ret;
+ H go,to,chars;
+ B str[_8K];
+ if(torchanger==NULL) { return RET_MISSINGPARM; }
+ if(torchanger->magic!=aaHPP(aaTorChangerNew)) { return RET_NOTINITIALIZED; }
+ go=0;
+ to=1;
+ while(1)
+  {
+  if((go++)>=to) { break; }
+  switch(torchanger->stage)
+   {
+   case 100:
+   if((ret=aaNetTcpCallCreate(&torchanger->call.handle,0,0,0,aaLoopBack,torchanger->cport,0))!=YES) { oops; }
+   aaNetTcpCallStatus(torchanger->call.handle,&torchanger->call.status);
+   torchanger->stage=120;
+   break;
+
+   case 120:
+   aaNetTcpCallStatus(torchanger->call.handle,&torchanger->call.status);
+   if(torchanger->call.status.is_connected!=YES) { break; }
+   aaNetTcpCallWritef(torchanger->call.handle,"AUTHENTICATE \"\"\r\n");
+   torchanger->stage=140;
+   break;
+
+   case 140:
+   aaNetTcpCallStatus(torchanger->call.handle,&torchanger->call.status);
+   if((ret=aaNetTcpCallStringRead(torchanger->call.handle,&chars,0,sizeof(str)-2,str))!=YES) { break; }
+   aaDebugf("chars=%-4i [%s]",chars,str);
+   if(aaStringICompare(str,"250 OK",0)!=YES) { break; }
+   aaNetTcpCallWritef(torchanger->call.handle,"SIGNAL NEWNYM\r\n");
+   torchanger->stage=160;
+   break;
+
+   case 160:
+   aaNetTcpCallStatus(torchanger->call.handle,&torchanger->call.status);
+   if((ret=aaNetTcpCallStringRead(torchanger->call.handle,&chars,0,sizeof(str)-2,str))!=YES) { break; }
+   aaDebugf("chars=%-4i [%s]",chars,str);
+   if(aaStringICompare(str,"250 OK",0)!=YES) { break; }
+   aaNetTcpCallDestroy(torchanger->call.handle);
+   torchanger->call.handle=0;
+   torchanger->stage=200;
+   break;
+
+   case 200:
+   return RET_YES;
+   }
+  }
+ return RET_NOTREADY;
+ }
+
+
+
+
+
 
 
 
@@ -81959,6 +82156,7 @@ typedef struct _FILE_STANDARD_INFO {
 
  B aaFileFolderRemove                  (VP fmt,...)
  {
+ DWORD ew;
  SHFILEOPSTRUCT file_op;
  aaVargsf(fmt)
 
@@ -81976,7 +82174,11 @@ typedef struct _FILE_STANDARD_INFO {
  file_op.fAnyOperationsAborted=0;
  file_op.hNameMappings=0;
  file_op.lpszProgressTitle="";
- if(SHFileOperation(&file_op)!=0) { oow; }
+ if(SHFileOperation(&file_op)!=0)
+  {
+  ew=GetLastError();
+  if(ew!=0) { oow; return RET_FAILED; }
+  }
  return RET_YES;
  }
 
@@ -84917,7 +85119,7 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
    if(aaStringNICompare(buf,str32k.buf,str32k.len,0)==YES)
     {
     aaStringDeleteChars(buf,chars,0,str32k.len);
-    aaStringUnQuote(buf,0,0);
+    //aaStringUnQuote(buf,0,0);
     if(aft)  { aaStringCopy(aft,buf); }
     if(line) { *line=li; }
     return RET_YES;
@@ -88748,7 +88950,7 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   if(jsonp->dec_stage==600&&jsonp->status.decode_success==YES&&jsonp->status.decode_failure==NO) { return RET_YES; }
   aaNote(0,"stag=%i,s=%i f=%i",jsonp->dec_stage,jsonp->status.decode_success,jsonp->status.decode_failure);
   }
- if(jsonp->status.mem_bytes==0) { return RET_NOTREADY; }
+ if(jsonp->status.mem_bytes==0) { oof; return RET_NOTREADY; }
  jsonp->status.is_decoding=YES;
  jsonp->status.decode_success=NO;
  jsonp->status.decode_failure=NO;
@@ -90803,7 +91005,8 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
    if(jsonlinea->code==JSON_CODE_OBJ_OPEN)
     {
     if(0) {  if(jsonlinea->elm_index!=-1&&fpa.count>0)   {   flatpartPush(&fpa,"[%i]",jsonlinea->elm_index);    }     }
-    else  {  if(jsonlinea->elm_index!=-1&&fpa.count>=0)  {   flatpartPush(&fpa,"[%i]",jsonlinea->elm_index);    }     }
+    //else  {  if(jsonlinea->elm_index!=-1&&fpa.count>=0)  {   flatpartPush(&fpa,"[%i]",jsonlinea->elm_index);    }     }
+    else  {  if(jsonlinea->elm_index!=-1)               {   flatpartPush(&fpa,"[%i]",jsonlinea->elm_index);    }     }
     break;
     }
    if(jsonlinea->code==JSON_CODE_ARRAY_OPEN)
@@ -91734,20 +91937,16 @@ whatever is possible
 
 /*-----------------------------------------------------------------------*/
 
-#if 1
+#if 0
  V aaNetWebsocketServerProc            (_websocketserver*websocketserver)
  {
  B ret;
- _websocketservercalldata*cd;
+ _websocketservercalldata*scd;
  B oc,ff;
- H bytes,hv,go,to;//bi,bo;
+ H bytes,hv,go,to;
  B the_data[_128K];
- //H chars,go,to;
- //B mode;
- //B txt[_8K];
  B etc[_2K];
  BP bp;
- //_wockpkt wockpkt;
  _websockethdr wockpkt;
  Q ms;
 
@@ -91756,113 +91955,110 @@ whatever is possible
  while(1)
   {
   if((go++)>=to) { break; }
-  cd=(_websocketservercalldata*)websocketserver->cd;
-  if(cd==NULL) oof;
-  switch(cd->stage)
+  scd=(_websocketservercalldata*)websocketserver->scd;
+  if(scd==NULL) oof;
+  switch(scd->stage)
    {
    case 0:
-   if((ret=aaNetWebsocketInit(&cd->wock,websocketserver->call.handle,0))!=YES) { oops; }
-   cd->wock.ping_xmit_last_ms=0;
-   cd->wock.pong_xmit_last_ms=0;
-   cd->wock.ping_rcve_last_ms=0;
-   cd->wock.pong_rcve_last_ms=0;
+   if((ret=aaNetWebsocketInit(&scd->wock,websocketserver->call.handle,0))!=YES) { oops; }
+   scd->wock.ping_xmit_last_ms=0;
+   scd->wock.pong_xmit_last_ms=0;
+   scd->wock.ping_rcve_last_ms=0;
+   scd->wock.pong_rcve_last_ms=0;
    aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
-   cd->is_ws=1;
-   cd->stage=10;
+   scd->is_ws=1;
+   scd->stage=10;
    break;
 
    case 3:
-   if(cd->do_close==0)   { aaDebugf("closeline %u",__LINE__);   cd->do_close=1;   }
-   cd->stage=5;
+   if(scd->is_close==0)
+    {
+    aaDebugf("closeline %u",__LINE__);
+    scd->is_close=1;
+    }
+   scd->stage=5;
    break;
 
    case 5:
    aaDebugf("closeline %u",__LINE__);
-   cd->do_close=2;
+   scd->is_close=2;
    break;
 
    case 10:
-   if(websocketserver->call.status.is_closed)  {  cd->stage=3;   break;   }
-   if((ret=aaNetWebsocketYield(&cd->wock))!=YES) { oops;  }
-   if(cd->wock.is_failure)                       { aaDebugf("line=%i failure a",__LINE__,cd->wock.fail_reason); cd->stage=3;  break; }
-   if(websocketserver->call.status.ms>=aaSecs(20))        { aaDebugf("stage10 timeout");  cd->stage=3; break; }
-   if(cd->wock.is_open!=YES)                     { break; }
-   ///aaDebugf("call answered on %s",cd->wock.url);
-   //if(aaStringICompare(cd->wock.x_forwarded_for,"220.240.77.127",0)!=YES) { cd->do_close=1; }
-
-   //serverCmdBegins(websocketserver,"xfwd");
-   //serverCmdKeyVal(websocketserver,"val","%s",cd->wock.x_forwarded_for);
-   ///   serverCmdBegins(websocketserver,"xfwd");
-   ///serverCmdKeyVal(websocketserver,"val","%s",cd->wock.x_forwarded_for);
-   ///serverCmdEolFix(websocketserver);
-   ///serverCmdFinish(websocketserver);
-   //if((ret=aaNetWebsocketWrite(&cd->wock,WEBSOCKET_OPCODE_PONG,YES,bytes,the_data))!=YES) { oops; }
-   aaStringCopyf(the_data,"{\"cmd\":\"xxx\",\"val\":\"%s\"}",cd->wock.x_forwarded_for);
-   if((ret=aaNetWebsocketWrite(&cd->wock,WEBSOCKET_OPCODE_TEXT,YES,0,the_data))!=RET_YES) { oops;}
-
-   cd->stage=1500;
+   if(websocketserver->call.status.is_closed)  { aaDebugf("close %i",__LINE__);  scd->stage=3;   break;   }
+   if((ret=aaNetWebsocketYield(&scd->wock))!=YES) { oops;  }
+   if(scd->wock.is_failure)                       { aaDebugf("line=%i failure a",__LINE__,scd->wock.fail_reason); scd->stage=3;  break; }
+   if(websocketserver->call.status.ms>=aaSecs(20))        { aaDebugf("stage10 timeout");  scd->stage=3; break; }
+   if(scd->wock.is_open!=YES)                     { break; }
+//   aaStringCopyf(the_data,"{\"cmd\":\"xxx\",\"val\":\"%s\"}",scd->wock.x_forwarded_for);
+   // if((ret=aaNetWebsocketWrite(&scd->wock,WEBSOCKET_OPCODE_TEXT,YES,0,the_data))!=RET_YES) { oops;}
+   scd->stage=1500;
    break;
 
 
    case 1500:
-   if(cd->do_close) { break; }
+   if(scd->is_close!=0)
+    {
+    aaDebugf("15000 do close=%i",scd->is_close);
+    break;
+    }
    aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
-   if((ret=aaNetWebsocketYield(&cd->wock))!=YES) {  oops; }
-   if(cd->wock.is_failure) { aaNote(0,"failure ec %i",cd->wock.fail_reason); }
+   if((ret=aaNetWebsocketYield(&scd->wock))!=YES) {  oops; }
+   if(scd->wock.is_failure) { aaNote(0,"failure ec %i",scd->wock.fail_reason); }
    //==========
    ms=aaMsRunning();
-   if((ms-cd->wock.ping_xmit_last_ms)>=20000)
+   if((ms-scd->wock.ping_xmit_last_ms)>=20000)
     {
     etc[0]='a';
     etc[1]=NULL_CHAR;
-    aaNetWebsocketWrite(&cd->wock,WEBSOCKET_OPCODE_PING,YES,2,etc);
-    cd->wock.ping_xmit_last_ms=ms;
+    aaNetWebsocketWrite(&scd->wock,WEBSOCKET_OPCODE_PING,YES,2,etc);
+    scd->wock.ping_xmit_last_ms=ms;
     }
    //==========
 
-   if(aaIoquePeek(&cd->ioque,IOQUE_XMIT,0,sizeof(wockpkt),&wockpkt)==YES)
+   if(aaIoquePeek(&scd->ioque,IOQUE_XMIT,0,sizeof(wockpkt),&wockpkt)==YES)
     {
-    if(aaIoqueRead(&cd->ioque,IOQUE_XMIT,sizeof(wockpkt),&wockpkt)!=YES) { oof; }
+    if(aaIoqueRead(&scd->ioque,IOQUE_XMIT,sizeof(wockpkt),&wockpkt)!=YES) { oof; }
     if(wockpkt.bytes>0)
      {
-     if(aaIoqueRead(&cd->ioque,IOQUE_XMIT,wockpkt.bytes,the_data)!=YES) { oof; }
+     if(aaIoqueRead(&scd->ioque,IOQUE_XMIT,wockpkt.bytes,the_data)!=YES) { oof; }
      the_data[wockpkt.bytes]=0;
      }
-    if(wockpkt.bytes>0) { if((ret=aaNetWebsocketWrite(&cd->wock,wockpkt.oc,wockpkt.ff,wockpkt.bytes,the_data))!=RET_YES) { oops;} }
-    else                { if((ret=aaNetWebsocketWrite(&cd->wock,wockpkt.oc,wockpkt.ff,0,0))!=RET_YES) { oops;} }
+    if(wockpkt.bytes>0) { if((ret=aaNetWebsocketWrite(&scd->wock,wockpkt.oc,wockpkt.ff,wockpkt.bytes,the_data))!=RET_YES) { oops;} }
+    else                { if((ret=aaNetWebsocketWrite(&scd->wock,wockpkt.oc,wockpkt.ff,0,0))!=RET_YES) { oops;} }
     }
 
-   if((ret=aaNetWebsocketRead(&cd->wock,&oc,&ff,&bytes,sizeof(the_data),the_data))==RET_YES)
+   if((ret=aaNetWebsocketRead(&scd->wock,&oc,&ff,&bytes,sizeof(the_data),the_data))==RET_YES)
     {
     bp=(BP)the_data;
     bp[bytes]=NULL_CHAR;
     }
-   if(cd->do_close==0)
+   if(scd->is_close==0)
     {
-    if(websocketserver->call.status.ms>(20000/4)&&websocketserver->call.status.rcve_inactivity>(20000*6)) {  cd->do_close=1; }
-    if(((websocketserver->call.status.rcve_bytes==0&&websocketserver->call.status.xmit_bytes==0)||(websocketserver->call.status.closed_ms>=aaSecs(3)))&&(websocketserver->call.status.is_closed)) { cd->do_close=1;  }
+    if(websocketserver->call.status.ms>(20000/4)&&websocketserver->call.status.rcve_inactivity>(20000*6)) { aaDebugf("doc1"); scd->is_close=1; }
+    if(((websocketserver->call.status.rcve_bytes==0&&websocketserver->call.status.xmit_bytes==0)||(websocketserver->call.status.closed_ms>=aaSecs(3)))&&(websocketserver->call.status.is_closed)) { aaDebugf("doc2"); scd->is_close=1;  }
     }
    if(ret!=RET_YES) { break; }
 
    if(oc==WEBSOCKET_OPCODE_CLOSE&&ff==1)
     {
     if(bytes==2)         { hv=*(WP)&the_data[0];  hv=aaNumSwapWord(hv);    }
-    aaNetWebsocketClose(&cd->wock);
-    if(cd->do_close==0)   { aaDebugf("closeline %u",__LINE__);  cd->do_close=1;    }
+    aaNetWebsocketClose(&scd->wock);
+    if(scd->is_close==0)   { aaDebugf("closeline %u",__LINE__);  scd->is_close=1;    }
     break;
     }
 
    if(oc==WEBSOCKET_OPCODE_PING&&ff==1)
     {
-    cd->wock.ping_rcve_last_ms=aaMsRunning();
-    if((ret=aaNetWebsocketWrite(&cd->wock,WEBSOCKET_OPCODE_PONG,YES,bytes,the_data))!=YES) { oops; }
-    cd->wock.pong_xmit_last_ms=aaMsRunning();
+    scd->wock.ping_rcve_last_ms=aaMsRunning();
+    if((ret=aaNetWebsocketWrite(&scd->wock,WEBSOCKET_OPCODE_PONG,YES,bytes,the_data))!=YES) { oops; }
+    scd->wock.pong_xmit_last_ms=aaMsRunning();
     break;
     }
 
    if(oc==WEBSOCKET_OPCODE_PONG&&ff==1)
     {
-    cd->wock.pong_rcve_last_ms=aaMsRunning();
+    scd->wock.pong_rcve_last_ms=aaMsRunning();
     break;
     }
 
@@ -91871,8 +92067,8 @@ whatever is possible
     wockpkt.oc=oc;
     wockpkt.ff=ff;
     wockpkt.bytes=bytes;
-    if((ret=aaIoqueWrite(&cd->ioque,IOQUE_RCVE,sizeof(wockpkt),&wockpkt))!=YES) { oops; }
-    if(bytes>0) { if((ret=aaIoqueWrite(&cd->ioque,IOQUE_RCVE,bytes,the_data))!=YES) { oops; } }
+    if((ret=aaIoqueWrite(&scd->ioque,IOQUE_RCVE,sizeof(wockpkt),&wockpkt))!=YES) { oops; }
+    if(bytes>0) { if((ret=aaIoqueWrite(&scd->ioque,IOQUE_RCVE,bytes,the_data))!=YES) { oops; } }
     //aaDebugf("wrote rcve %i",bytes);
     break;
     }
@@ -91883,6 +92079,101 @@ whatever is possible
  }
 
 #endif
+
+
+
+#if 0
+
+ B aaNetWebsocketServerYield           (_websocketserver*websocketserver)
+ {
+ B ret;
+ H ita;
+ _websocketservercalldata*scd;
+
+ if(websocketserver==NULL)                    { return RET_MISSINGPARM; }
+ if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+ ita=1;
+ while(ita--)
+  {
+  websocketserver->scd=NULL;
+  aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
+  if(aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0)!=YES) { continue; }
+  if(websocketserver->call.status.is_connected!=YES)
+   {
+   if(websocketserver->max_calls>0&&websocketserver->port.status.calls_inuse>=websocketserver->max_calls)
+    {
+    aaNetTcpCallDestroy(websocketserver->call.handle);
+    continue;
+    }
+   //------- replaces aaNetWebsocketServerCallAnswer(websocketserver);
+   if((ret=aaNetTcpCallAnswer(websocketserver->call.handle))!=YES) { oops; }
+   aaNetTcpCallInactivityResetOn(websocketserver->call.handle,YES,YES);
+   aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
+   if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; }
+   scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+   if(scd) { }
+   websocketserver->cur_calls++;
+   websocketserver->tot_calls++;
+   scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+   if((ret=aaIoqueNew(&scd->ioque))!=YES) { oops; }
+   websocketserver->scd=scd;
+   //-------
+   continue;
+   }
+  //if(websocketserver->call.status.is_closed)   { aaDebugf("call answer closed");   }
+  if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { aaDebugf("eb=%i",websocketserver->call.status.extra_bytes); }
+  scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+  websocketserver->scd=scd;
+
+  switch(scd->is_close)
+   {
+   case 0:
+   break;
+
+   case 1:
+   aaDebugf("line =%i dockios",__LINE__);
+   if(scd->is_ws&&scd->wock.is_open)
+    {
+    if((ret=aaNetWebsocketClose(&scd->wock))!=YES)  {   aaDebugf(">>>> %s %i %s",__FILE__,__LINE__,arets);     }
+    }
+   aaNetTcpCallClose(websocketserver->call.handle);
+   aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
+   scd->is_close=2;
+   ita=0;
+   break;
+
+   case 2:
+   //----- replaces aaNetWebsocketServerCallDestroy(websocketserver);
+   ///aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
+   ///if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; }
+   ///cd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+   if((ret=aaIoqueDelete(&scd->ioque))!=YES) { oops; }
+   aaNetTcpCallDestroy(websocketserver->call.handle);
+   websocketserver->call.handle=0;
+   websocketserver->scd=NULL;
+   websocketserver->cur_calls--;
+   ita=0;
+   break;
+   }
+
+  if(websocketserver->scd==NULL)   {   break;   }
+  if(websocketserver->call.status.is_closed)
+   {
+   aaDebugf("line =%i dockios",__LINE__);
+   if(scd->is_close==0&&scd->stage<10) { scd->is_close=1;   continue;    }
+   aaDebugf("closems=%i",websocketserver->call.status.closed_ms);
+   }
+
+  aaNetWebsocketServerProc(websocketserver);
+  /// if((proc=websocketserver->proc))   {   proc(websocketserver);   }
+  }
+ return RET_YES;
+ }
+
+#endif
+
+
+
 
 /*-----------------------------------------------------------------------*/
 
@@ -91899,8 +92190,6 @@ whatever is possible
  aaNetAdrSet(&websocketserver->adr,ip,port);
  if((ret=aaNetTcpPortCreate(&websocketserver->port.handle,websocketserver->adr.ip,websocketserver->adr.port,sizeof(_websocketservercalldata)))!=YES)  { oops;  }
  aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
- //websocketserver->proc=proc;
- //aaDebugf("websocketserver started");
  return RET_YES;
  }
 
@@ -91910,7 +92199,7 @@ whatever is possible
  B aaNetWebsocketServerDelete          (_websocketserver*websocketserver)
  {
  B ret;
- //_websocketservercalldata*cd;
+ _websocketservercalldata*scd;
  if(websocketserver==NULL)                    { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
  if(websocketserver->port.handle!=0)
@@ -91920,7 +92209,12 @@ whatever is possible
    aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
    if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0))!=YES) { break; }
    if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; break; }
-   if((ret=aaNetWebsocketServerCallDestroy(websocketserver))!=YES) { oops; }
+   scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+   if((ret=aaIoqueDelete(&scd->ioque))!=YES) { oops; }
+   aaNetTcpCallDestroy(websocketserver->call.handle);
+   websocketserver->call.handle=0;
+   websocketserver->scd=NULL;
+   websocketserver->cur_calls--;
    }
   aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
   aaNetTcpPortDestroy(websocketserver->port.handle);
@@ -91935,19 +92229,259 @@ whatever is possible
 
 
 
+
+
  B aaNetWebsocketServerYield           (_websocketserver*websocketserver)
  {
  B ret;
  H ita;
- _websocketservercalldata*cd;
- //V(*proc)(_websocketserver*);
+ _websocketservercalldata*scd;
+ _tcpcallunit cu;
+ B oc,ff;
+ H bytes,hv,go,to;
+ B the_data[_128K];
+ B etc[_2K];
+ BP bp;
+ _websockethdr wockpkt;
+ Q ms;
 
  if(websocketserver==NULL)                    { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
  ita=1;
  while(ita--)
   {
-  websocketserver->cd=NULL;
+  scd=NULL;
+  aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
+  if(aaNetTcpPortCallNext(websocketserver->port.handle,&cu.handle,&cu.status,0)!=YES) { continue; }
+  if(cu.status.is_connected!=YES)
+   {
+   if(websocketserver->max_calls>0&&websocketserver->port.status.calls_inuse>=websocketserver->max_calls)
+    {
+    aaNetTcpCallDestroy(cu.handle);
+    continue;
+    }
+   if((ret=aaNetTcpCallAnswer(cu.handle))!=YES) { oops; }
+   aaDebugf("answ");
+   aaNetTcpCallInactivityResetOn(cu.handle,YES,YES);
+   aaNetTcpCallStatus(cu.handle,&cu.status);
+   if(cu.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; }
+   scd=(_websocketservercalldata*)cu.status.extra_data;
+   if(scd) { }
+   websocketserver->cur_calls++;
+   websocketserver->tot_calls++;
+   scd=(_websocketservercalldata*)cu.status.extra_data;
+   if((ret=aaIoqueNew(&scd->ioque))!=YES) { oops; }
+   //websocketserver->scd=scd;
+   //-------
+   continue;
+   }
+
+  if(cu.status.extra_bytes!=sizeof(_websocketservercalldata)) { aaDebugf("eb=%i",cu.status.extra_bytes); oof; }
+  scd=(_websocketservercalldata*)cu.status.extra_data;
+  //websocketserver->scd=scd;
+
+//  aaDebugf("scd->is_close=%i",scd->is_close);
+  switch(scd->is_close)
+   {
+   case 1:
+   //aaDebugf("line =%i dockios",__LINE__);
+   if(scd->is_ws&&scd->wock.is_open)
+    {
+    if((ret=aaNetWebsocketClose(&scd->wock))!=YES)  {   aaDebugf(">>>> %s %i %s",__FILE__,__LINE__,arets);     }
+    }
+   aaNetTcpCallClose(cu.handle);
+   aaNetTcpCallStatus(cu.handle,&cu.status);
+   scd->is_close=2;
+   ita=0;
+   break;
+
+
+   case 2:
+   if(scd->is_ready&&scd->is_closing!=YES)
+    {
+    if(aaMathRand32(0,50)==0)
+     {
+     aaDebugf("waiting closing %s,%s,%s,eb=%i isin=%i iscon=%i",
+     cu.status.src_dot,cu.status.local_dot,cu.status.remote_dot,  cu.status.extra_bytes,
+     cu.status.is_incoming,cu.status.is_connected );
+     }
+
+
+    break;
+    }
+   if((ret=aaIoqueDelete(&scd->ioque))!=YES) { oops; }
+   ///aaDebugf("des");
+   aaNetTcpCallDestroy(cu.handle);
+   //websocketserver->call.handle=0;
+   //websocketserver->scd=NULL;
+   //websocketserver->cur_calls--;
+   ita=0;
+   scd=NULL;
+   break;
+   }
+
+
+  if(scd==NULL)   {   break;   }
+  if(cu.status.is_closed)
+   {
+   //aaDebugf("line =%i dockios",__LINE__);
+   //if(scd->is_close==0&&scd->stage<10) { scd->is_close=1;   continue;    }
+   if(scd->is_close==0&&scd->is_ready!=YES) { scd->is_close=1;   continue;    }
+   //aaDebugf("aclosems=%i",cu.status.closed_ms);
+   }
+
+
+  go=0;
+  to=5;
+  while(1)
+   {
+   if((go++)>=to) { break; }
+   //scd=(_websocketservercalldata*)websocketserver->scd;
+   if(scd==NULL) oof;
+   switch(scd->stage)
+    {
+    case 0:
+    if((ret=aaNetWebsocketInit(&scd->wock,cu.handle,0))!=YES) { oops; }
+    scd->wock.ping_xmit_last_ms=0;
+    scd->wock.pong_xmit_last_ms=0;
+    scd->wock.ping_rcve_last_ms=0;
+    scd->wock.pong_rcve_last_ms=0;
+    aaNetTcpCallStatus(cu.handle,&cu.status);
+    //aaDebugf("init");
+    scd->is_ws=1;
+    scd->stage=10;
+    break;
+
+    case 3:
+    if(scd->is_close==0)
+     {
+     aaDebugf("closeline %u",__LINE__);
+     scd->is_close=1;
+     }
+    scd->stage=5;
+    break;
+
+    case 5:
+    aaDebugf("closeline %u",__LINE__);
+    scd->is_close=2;
+    break;
+
+    case 10:
+    if(cu.status.is_closed)  {   aaDebugf("close %i",__LINE__);   scd->stage=3;     break;     }
+    if((ret=aaNetWebsocketYield(&scd->wock))!=YES) { oops;  }
+    if(scd->wock.is_failure)    {    aaDebugf("line=%i failure a",__LINE__,scd->wock.fail_reason); scd->stage=3;  break;   }
+    if(cu.status.ms>=aaSecs(20))   {  aaDebugf("stage10 timeout");   scd->stage=3;    break;     }
+    if(scd->wock.is_open!=YES)                     { break; }
+    //aaDebugf("isready");
+    scd->is_ready=YES;
+    scd->stage=1500;
+    break;
+
+
+    case 1500:
+    if(scd->is_closing!=0)   { break; }
+    if(scd->is_close!=0)     { break; } //    aaDebugf("15000 do close=%i",scd->is_close);     break;     }
+    aaNetTcpCallStatus(cu.handle,&cu.status);
+    if((ret=aaNetWebsocketYield(&scd->wock))!=YES) {  oops; }
+    if(scd->wock.is_failure) { aaNote(0,"failure ec %i",scd->wock.fail_reason); }
+    //==========
+    ms=aaMsRunning();
+    if((ms-scd->wock.ping_xmit_last_ms)>=20000)
+     {
+     etc[0]='a';
+     etc[1]=NULL_CHAR;
+     aaNetWebsocketWrite(&scd->wock,WEBSOCKET_OPCODE_PING,YES,2,etc);
+     scd->wock.ping_xmit_last_ms=ms;
+     }
+    //==========
+    if(aaIoquePeek(&scd->ioque,IOQUE_XMIT,0,sizeof(wockpkt),&wockpkt)==YES)
+     {
+     if(aaIoqueRead(&scd->ioque,IOQUE_XMIT,sizeof(wockpkt),&wockpkt)!=YES) { oof; }
+     if(wockpkt.bytes>0)
+      {
+      if(aaIoqueRead(&scd->ioque,IOQUE_XMIT,wockpkt.bytes,the_data)!=YES) { oof; }
+      the_data[wockpkt.bytes]=0;
+      }
+     if(wockpkt.bytes>0) { if((ret=aaNetWebsocketWrite(&scd->wock,wockpkt.oc,wockpkt.ff,wockpkt.bytes,the_data))!=RET_YES) { oops;} }
+     else                { if((ret=aaNetWebsocketWrite(&scd->wock,wockpkt.oc,wockpkt.ff,0,0))!=RET_YES) { oops;} }
+     }
+    if((ret=aaNetWebsocketRead(&scd->wock,&oc,&ff,&bytes,sizeof(the_data),the_data))==RET_YES)
+     {
+     bp=(BP)the_data;
+     bp[bytes]=NULL_CHAR;
+     }
+    if(scd->is_close==0)
+     {
+     if(cu.status.ms>(20000/4)&&cu.status.rcve_inactivity>(20000*6))
+      {
+      aaDebugf("doc1");
+      scd->is_close=1;
+      }
+     if(((cu.status.rcve_bytes==0&&cu.status.xmit_bytes==0)||(cu.status.closed_ms>=aaSecs(3)))&&(cu.status.is_closed))
+      {
+      aaDebugf("doc2");
+      scd->is_close=1;
+      }
+     }
+    if(ret!=RET_YES)
+     {
+     break;
+     }
+    if(oc==WEBSOCKET_OPCODE_CLOSE&&ff==1)
+     {
+     if(bytes==2)         { hv=*(WP)&the_data[0];  hv=aaNumSwapWord(hv);    }
+     aaNetWebsocketClose(&scd->wock);
+     if(scd->is_close==0)
+      {
+     /// aaDebugf("closeline %u",__LINE__);
+      scd->is_close=1;
+      }
+     break;
+     }
+
+    if(oc==WEBSOCKET_OPCODE_PING&&ff==1)
+     {
+     scd->wock.ping_rcve_last_ms=aaMsRunning();
+     if((ret=aaNetWebsocketWrite(&scd->wock,WEBSOCKET_OPCODE_PONG,YES,bytes,the_data))!=YES) { oops; }
+     scd->wock.pong_xmit_last_ms=aaMsRunning();
+     break;
+     }
+
+    if(oc==WEBSOCKET_OPCODE_PONG&&ff==1)
+     {
+     scd->wock.pong_rcve_last_ms=aaMsRunning();
+     break;
+     }
+
+    if((oc==WEBSOCKET_OPCODE_TEXT||oc==WEBSOCKET_OPCODE_BINARY)&&ff==1)
+     {
+     wockpkt.oc=oc;
+     wockpkt.ff=ff;
+     wockpkt.bytes=bytes;
+     if((ret=aaIoqueWrite(&scd->ioque,IOQUE_RCVE,sizeof(wockpkt),&wockpkt))!=YES) { oops; }
+     if(bytes>0) { if((ret=aaIoqueWrite(&scd->ioque,IOQUE_RCVE,bytes,the_data))!=YES) { oops; } }
+     //aaDebugf("wrote rcve %i",bytes);
+     break;
+     }
+    if(oc==0)
+     {
+     break;
+     }
+    aaNote(0,"a binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
+    break;
+    }
+   }
+
+  #if 0
+
+
+
+
+
+
+
+
+  websocketserver->scd=NULL;
   aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
   if(aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0)!=YES) { continue; }
   if(websocketserver->call.status.is_connected!=YES)
@@ -91955,169 +92489,202 @@ whatever is possible
    if(websocketserver->max_calls>0&&websocketserver->port.status.calls_inuse>=websocketserver->max_calls)
     {
     aaNetTcpCallDestroy(websocketserver->call.handle);
+    continue;
     }
-   else
-    {
-    aaNetWebsocketServerCallAnswer(websocketserver);
-    }
+   if((ret=aaNetTcpCallAnswer(websocketserver->call.handle))!=YES) { oops; }
+   aaNetTcpCallInactivityResetOn(websocketserver->call.handle,YES,YES);
+   aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
+   if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; }
+   scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+   if(scd) { }
+   websocketserver->cur_calls++;
+   websocketserver->tot_calls++;
+   scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+   if((ret=aaIoqueNew(&scd->ioque))!=YES) { oops; }
+   websocketserver->scd=scd;
+   //-------
    continue;
    }
-  //if(websocketserver->call.status.is_closed)   { aaDebugf("call answer closed");   }
+
   if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { aaDebugf("eb=%i",websocketserver->call.status.extra_bytes); }
-  cd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
-  websocketserver->cd=cd;
+  scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+  websocketserver->scd=scd;
 
-  switch(cd->do_close)
+  switch(scd->is_close)
    {
-   case 0:
-   break;
-
    case 1:
-   if(cd->is_ws&&cd->wock.is_open)
+   aaDebugf("line =%i dockios",__LINE__);
+   if(scd->is_ws&&scd->wock.is_open)
     {
-    if((ret=aaNetWebsocketClose(&cd->wock))!=YES)  {   aaDebugf(">>>> %s %i %s",__FILE__,__LINE__,arets);     }
+    if((ret=aaNetWebsocketClose(&scd->wock))!=YES)  {   aaDebugf(">>>> %s %i %s",__FILE__,__LINE__,arets);     }
     }
    aaNetTcpCallClose(websocketserver->call.handle);
    aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
-   cd->do_close=2;
+   scd->is_close=2;
    ita=0;
    break;
 
+
    case 2:
-   aaNetWebsocketServerCallDestroy(websocketserver);
+   if((ret=aaIoqueDelete(&scd->ioque))!=YES) { oops; }
+   aaNetTcpCallDestroy(websocketserver->call.handle);
+   websocketserver->call.handle=0;
+   websocketserver->scd=NULL;
+   websocketserver->cur_calls--;
    ita=0;
    break;
    }
 
-  if(websocketserver->cd==NULL)   {   break;   }
+  if(websocketserver->scd==NULL)   {   break;   }
   if(websocketserver->call.status.is_closed)
    {
-   if(cd->do_close==0&&cd->stage<10) { cd->do_close=1;   continue;    }
+   aaDebugf("line =%i dockios",__LINE__);
+   if(scd->is_close==0&&scd->stage<10) { scd->is_close=1;   continue;    }
    aaDebugf("closems=%i",websocketserver->call.status.closed_ms);
    }
 
-  aaNetWebsocketServerProc(websocketserver);
-  /// if((proc=websocketserver->proc))   {   proc(websocketserver);   }
+
+  go=0;
+  to=5;
+  while(1)
+   {
+   if((go++)>=to) { break; }
+   scd=(_websocketservercalldata*)websocketserver->scd;
+   if(scd==NULL) oof;
+   switch(scd->stage)
+    {
+    case 0:
+    if((ret=aaNetWebsocketInit(&scd->wock,websocketserver->call.handle,0))!=YES) { oops; }
+    scd->wock.ping_xmit_last_ms=0;
+    scd->wock.pong_xmit_last_ms=0;
+    scd->wock.ping_rcve_last_ms=0;
+    scd->wock.pong_rcve_last_ms=0;
+    aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
+    scd->is_ws=1;
+    scd->stage=10;
+    break;
+
+    case 3:
+    if(scd->is_close==0)
+     {
+     aaDebugf("closeline %u",__LINE__);
+     scd->is_close=1;
+     }
+    scd->stage=5;
+    break;
+
+    case 5:
+    aaDebugf("closeline %u",__LINE__);
+    scd->is_close=2;
+    break;
+
+    case 10:
+    if(websocketserver->call.status.is_closed)  {   aaDebugf("close %i",__LINE__);   scd->stage=3;     break;     }
+
+    if((ret=aaNetWebsocketYield(&scd->wock))!=YES) { oops;  }
+    if(scd->wock.is_failure)    {    aaDebugf("line=%i failure a",__LINE__,scd->wock.fail_reason); scd->stage=3;  break;   }
+    if(websocketserver->call.status.ms>=aaSecs(20))   {  aaDebugf("stage10 timeout");   scd->stage=3;    break;     }
+    if(scd->wock.is_open!=YES)                     { break; }
+    scd->stage=1500;
+    break;
+
+
+    case 1500:
+    if(scd->is_close!=0)     {     aaDebugf("15000 do close=%i",scd->is_close);     break;     }
+    aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
+    if((ret=aaNetWebsocketYield(&scd->wock))!=YES) {  oops; }
+    if(scd->wock.is_failure) { aaNote(0,"failure ec %i",scd->wock.fail_reason); }
+    //==========
+    ms=aaMsRunning();
+    if((ms-scd->wock.ping_xmit_last_ms)>=20000)
+     {
+     etc[0]='a';
+     etc[1]=NULL_CHAR;
+     aaNetWebsocketWrite(&scd->wock,WEBSOCKET_OPCODE_PING,YES,2,etc);
+     scd->wock.ping_xmit_last_ms=ms;
+     }
+    //==========
+
+    if(aaIoquePeek(&scd->ioque,IOQUE_XMIT,0,sizeof(wockpkt),&wockpkt)==YES)
+     {
+     if(aaIoqueRead(&scd->ioque,IOQUE_XMIT,sizeof(wockpkt),&wockpkt)!=YES) { oof; }
+     if(wockpkt.bytes>0)
+      {
+      if(aaIoqueRead(&scd->ioque,IOQUE_XMIT,wockpkt.bytes,the_data)!=YES) { oof; }
+      the_data[wockpkt.bytes]=0;
+      }
+     if(wockpkt.bytes>0) { if((ret=aaNetWebsocketWrite(&scd->wock,wockpkt.oc,wockpkt.ff,wockpkt.bytes,the_data))!=RET_YES) { oops;} }
+     else                { if((ret=aaNetWebsocketWrite(&scd->wock,wockpkt.oc,wockpkt.ff,0,0))!=RET_YES) { oops;} }
+     }
+
+    if((ret=aaNetWebsocketRead(&scd->wock,&oc,&ff,&bytes,sizeof(the_data),the_data))==RET_YES)
+     {
+     bp=(BP)the_data;
+     bp[bytes]=NULL_CHAR;
+     }
+
+    if(scd->is_close==0)
+     {
+     if(websocketserver->call.status.ms>(20000/4)&&websocketserver->call.status.rcve_inactivity>(20000*6))
+      {
+      aaDebugf("doc1");
+      scd->is_close=1;
+      }
+     if(((websocketserver->call.status.rcve_bytes==0&&websocketserver->call.status.xmit_bytes==0)||(websocketserver->call.status.closed_ms>=aaSecs(3)))&&(websocketserver->call.status.is_closed))
+      {
+      aaDebugf("doc2");
+      scd->is_close=1;
+      }
+     }
+    if(ret!=RET_YES) { break; }
+
+    if(oc==WEBSOCKET_OPCODE_CLOSE&&ff==1)
+     {
+     if(bytes==2)         { hv=*(WP)&the_data[0];  hv=aaNumSwapWord(hv);    }
+     aaNetWebsocketClose(&scd->wock);
+     if(scd->is_close==0)
+      {
+      aaDebugf("closeline %u",__LINE__);
+      scd->is_close=1;
+      }
+     break;
+     }
+
+    if(oc==WEBSOCKET_OPCODE_PING&&ff==1)
+     {
+     scd->wock.ping_rcve_last_ms=aaMsRunning();
+     if((ret=aaNetWebsocketWrite(&scd->wock,WEBSOCKET_OPCODE_PONG,YES,bytes,the_data))!=YES) { oops; }
+     scd->wock.pong_xmit_last_ms=aaMsRunning();
+     break;
+     }
+
+    if(oc==WEBSOCKET_OPCODE_PONG&&ff==1)
+     {
+     scd->wock.pong_rcve_last_ms=aaMsRunning();
+     break;
+     }
+
+    if((oc==WEBSOCKET_OPCODE_TEXT||oc==WEBSOCKET_OPCODE_BINARY)&&ff==1)
+     {
+     wockpkt.oc=oc;
+     wockpkt.ff=ff;
+     wockpkt.bytes=bytes;
+     if((ret=aaIoqueWrite(&scd->ioque,IOQUE_RCVE,sizeof(wockpkt),&wockpkt))!=YES) { oops; }
+     if(bytes>0) { if((ret=aaIoqueWrite(&scd->ioque,IOQUE_RCVE,bytes,the_data))!=YES) { oops; } }
+     //aaDebugf("wrote rcve %i",bytes);
+     break;
+     }
+    aaNote(0,"binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
+    break;
+    }
+   }
+   #endif
+
   }
  return RET_YES;
  }
 
 
-
-
-
-
- B aaNetWebsocketServerCallAnswer      (_websocketserver*websocketserver)
- {
- B ret;
- _websocketservercalldata*cd;
- if(websocketserver==NULL)                    { return RET_MISSINGPARM; }
- if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
- if((ret=aaNetTcpCallAnswer(websocketserver->call.handle))!=YES) { oops; }
- aaNetTcpCallInactivityResetOn(websocketserver->call.handle,YES,YES);
- aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
- if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; }
- cd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
- if(cd) { }
- websocketserver->cur_calls++;
- websocketserver->tot_calls++;
- cd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
- if((ret=aaIoqueNew(&cd->ioque))!=YES) { oops; }
- websocketserver->cd=cd;
- return RET_YES;
- }
-
-
-
-
-
-
- B aaNetWebsocketServerCallDestroy     (_websocketserver*websocketserver)
- {
- B ret;
- _websocketservercalldata*cd;
- if(websocketserver==NULL)                    { return RET_MISSINGPARM; }
- if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
- aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
- if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; }
- cd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
- if((ret=aaIoqueDelete(&cd->ioque))!=YES) { oops; }
- aaNetTcpCallDestroy(websocketserver->call.handle);
- websocketserver->call.handle=0;
- websocketserver->cd=NULL;
- websocketserver->cur_calls--;
- return RET_YES;
- }
-
-
-
-
-
-
-
-
-
-
-
-
- B aaNetWebsocketServerCallGet         (_websocketserver*websocketserver,H callhandle,_tcpcallstatus*callstatus)
- {
- B ret;
- _websocketservercalldata*cd;
- if(websocketserver==NULL) { return RET_MISSINGPARM; }
- if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
-  while(1)
-   {
-   //aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
-   //if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0))!=YES) { break; }
-
-   if((ret=aaNetTcpCallStatus(callhandle,callstatus))!=YES) { oops; }
-   websocketserver->call.handle=callhandle;
-   aaMemoryCopy(&websocketserver->call.status,sizeof(_tcpcallstatus),callstatus);
-
-   if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; break; }
-   cd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
-   if(cd->stage!=1500) { oof; break; }
-
-   websocketserver->cd=cd;
-   //if(callhandle) { *callhandle=websocketserver->call.handle; }
-   //if(callstatus) { aaMemoryCopy(callstatus,sizeof(_tcpcallstatus),&websocketserver->call.status); }
-   return RET_YES;
-   }
-  //}
- return RET_NOTREADY;
- }
-
-
-
-
-
-
-
- B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver,HP callhandle,_tcpcallstatus*callstatus)
- {
- B ret;
- _websocketservercalldata*cd;
- if(websocketserver==NULL) { return RET_MISSINGPARM; }
- if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
- if(callhandle) { *callhandle=0; }
- if(websocketserver->port.handle!=0)
-  {
-  while(1)
-   {
-   aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
-   if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0))!=YES) { break; }
-   if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; break; }
-   cd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
-   if(cd->stage!=1500) { break; }
-   websocketserver->cd=cd;
-   if(callhandle) { *callhandle=websocketserver->call.handle; }
-   if(callstatus) { aaMemoryCopy(callstatus,sizeof(_tcpcallstatus),&websocketserver->call.status); }
-   return RET_YES;
-   }
-  }
- return RET_NOTREADY;
- }
 
 
 
@@ -92131,12 +92698,13 @@ whatever is possible
  if(websocketserver==NULL) { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
  if(websockethdr==NULL) { return RET_MISSINGPARM; }
- if(data==NULL)    { return RET_MISSINGPARM; }
- if((ret=aaIoquePeek(&websocketserver->cd->ioque,IOQUE_RCVE,0,sizeof(_websockethdr),websockethdr))!=YES) { return ret; }
+ if(data==NULL)         { return RET_MISSINGPARM; }
+ if(websocketserver->scd==NULL) { return RET_NOTREADY; }
+ if((ret=aaIoquePeek(&websocketserver->scd->ioque,IOQUE_RCVE,0,sizeof(_websockethdr),websockethdr))!=YES) { return ret; }
  bp=(BP)data;
- if(websockethdr->bytes>0) { if((ret=aaIoquePeek(&websocketserver->cd->ioque,IOQUE_RCVE,0+sizeof(_websockethdr),websockethdr->bytes,bp))!=YES) { oops; }  }
+ if(websockethdr->bytes>0) { if((ret=aaIoquePeek(&websocketserver->scd->ioque,IOQUE_RCVE,0+sizeof(_websockethdr),websockethdr->bytes,bp))!=YES) { oops; }  }
  bp[websockethdr->bytes]=0;
- if((ret=aaIoqueDiscard(&websocketserver->cd->ioque,IOQUE_RCVE,sizeof(_websockethdr)+websockethdr->bytes))!=YES) { oops; }
+ if((ret=aaIoqueDiscard(&websocketserver->scd->ioque,IOQUE_RCVE,sizeof(_websockethdr)+websockethdr->bytes))!=YES) { oops; }
  return RET_YES;
  }
 
@@ -92149,19 +92717,20 @@ whatever is possible
  _websockethdr wockpkt;
  if(websocketserver==NULL) { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+ if(websocketserver->scd==NULL) { return RET_NOTREADY; }
  if(bytes==0&&data!=NULL) { aaStringLen(data,&bytes); }
  if(bytes!=0&&data==NULL) { return RET_MISSINGPARM; }
  wockpkt.oc=oc;
  wockpkt.ff=ff;
  wockpkt.bytes=bytes;
  //aaDebugf("%i %i,%i,%i",__LINE__,wockpkt.oc,wockpkt.ff,wockpkt.bytes);
- //aaDebugf("cd=%i",websocketserver->cd->ustage);
- if((ret=aaIoqueWrite(&websocketserver->cd->ioque,IOQUE_XMIT,sizeof(_websockethdr),&wockpkt))!=YES)  { oops; }
+ ///aaDebugf("cd=%i isws=%i bytes=%i",websocketserver->scd->ustage,websocketserver->scd->is_ws,bytes);
+ if((ret=aaIoqueWrite(&websocketserver->scd->ioque,IOQUE_XMIT,sizeof(_websockethdr),&wockpkt))!=YES)  { oops; }
  //aaDebugf("%i",__LINE__);
  if(wockpkt.bytes>0)
   {
   //aaDebugf("%i",__LINE__);
-  if((ret=aaIoqueWrite(&websocketserver->cd->ioque,IOQUE_XMIT,wockpkt.bytes,data))!=YES) { oops; }
+  if((ret=aaIoqueWrite(&websocketserver->scd->ioque,IOQUE_XMIT,wockpkt.bytes,data))!=YES) { oops; }
   //aaDebugf("%i",__LINE__);
   }
   //aaDebugf("%i",__LINE__);
@@ -92173,11 +92742,84 @@ whatever is possible
 
  B aaNetWebsocketServerPktWritef       (_websocketserver*websocketserver,B oc,B ff,VP fmt,...)
  {
+ aaVargsf32K(fmt);
  if(websocketserver==NULL) { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
- aaVargsf32K(fmt);
  return(aaNetWebsocketServerPktWrite(websocketserver,oc,ff,0,str32k.buf));
  }
+
+
+
+
+
+
+ B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver)//,HP callhandle,_tcpcallstatus*callstatus)
+ {
+ B ret;
+ _websocketservercalldata*scd;
+
+ if(websocketserver==NULL) { return RET_MISSINGPARM; }
+ if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+ websocketserver->call.handle=0;
+ websocketserver->scd=NULL;
+// if(callhandle) { *callhandle=0; }
+ if(websocketserver->port.handle!=0)
+  {
+  while(1)
+   {
+   aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
+   if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0))!=YES) { break; }
+   if(websocketserver->call.status.is_connected!=YES)
+    {
+    aaDebugf("zzzzox %s,%s,%s,eb=%i so=%i\nisin=%i iscon=%i",
+    websocketserver->call.status.src_dot,websocketserver->call.status.local_dot,websocketserver->call.status.remote_dot,
+    websocketserver->call.status.extra_bytes,sizeof(_websocketservercalldata),
+    websocketserver->call.status.is_incoming,websocketserver->call.status.is_connected );
+    break;
+    }
+
+   if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata))
+    {
+    aaNote(0,"zox %s,%s,%s,eb=%i so=%i\nisin=%i iscon=%i",
+    websocketserver->call.status.src_dot,websocketserver->call.status.local_dot,websocketserver->call.status.remote_dot,
+    websocketserver->call.status.extra_bytes,sizeof(_websocketservercalldata),
+    websocketserver->call.status.is_incoming,websocketserver->call.status.is_connected );
+    break;
+    }
+   scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+   if(scd->stage!=1500)
+    {
+    break;
+    }
+   websocketserver->scd=scd;
+   //if(callhandle) { *callhandle=websocketserver->call.handle; }
+   //if(callstatus) { aaMemoryCopy(callstatus,sizeof(_tcpcallstatus),&websocketserver->call.status); }
+   return RET_YES;
+   }
+  }
+ return RET_NOTREADY;
+ }
+
+
+
+
+
+ B aaNetWebsocketServerCallClose       (_websocketserver*websocketserver)
+ {
+ //_websocketservercalldata*scd;
+ if(websocketserver==NULL) { return RET_MISSINGPARM; }
+ if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+ if(websocketserver->scd==NULL) { return RET_NOTREADY; }
+ //scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+ //if(scd->is_close==0) { scd->is_close=1; }
+ if(websocketserver->scd->is_closing==0) { websocketserver->scd->is_closing=1; }
+ if(websocketserver->scd->is_close==0) { websocketserver->scd->is_close=1; }
+
+
+ return RET_YES;
+ }
+
+
 
 
 
@@ -92292,12 +92934,13 @@ whatever is possible
    if(cd->wock.is_open!=YES)                     { break; }
    if(0) { aaDebugf("Websocket websocketclient handshaked and open on %s",cd->wock.url); }
    //aaDebugf("websocketclient wock open");
+   cd->is_ready=YES;
    websocketclient->stage=1500;
    break;
 
 
    case 1500:
-   if(cd->do_close) { break; }
+   if(cd->is_close) { break; }
    aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status);
    if((ret=aaNetWebsocketYield(&cd->wock))!=YES) {  oops; }
    if(cd->wock.is_failure) { aaNote(0,"failure ec %i",cd->wock.fail_reason); }
@@ -92330,10 +92973,10 @@ whatever is possible
     bp=(BP)the_data;
     bp[bytes]=NULL_CHAR;
     }
-   if(cd->do_close==0)
+   if(cd->is_close==0)
     {
-    if(websocketclient->call.status.ms>(20000/4)&&websocketclient->call.status.rcve_inactivity>(20000*6)) {  cd->do_close=1; }
-    if(((websocketclient->call.status.rcve_bytes==0&&websocketclient->call.status.xmit_bytes==0)||(websocketclient->call.status.closed_ms>=aaSecs(3)))&&(websocketclient->call.status.is_closed)) { cd->do_close=1;  }
+    if(websocketclient->call.status.ms>(20000/4)&&websocketclient->call.status.rcve_inactivity>(20000*6)) {  cd->is_close=1; }
+    if(((websocketclient->call.status.rcve_bytes==0&&websocketclient->call.status.xmit_bytes==0)||(websocketclient->call.status.closed_ms>=aaSecs(3)))&&(websocketclient->call.status.is_closed)) { cd->is_close=1;  }
     }
    if(ret!=RET_YES) { break; }
 
@@ -92341,7 +92984,7 @@ whatever is possible
     {
     if(bytes==2)         { hv=*(WP)&the_data[0];  hv=aaNumSwapWord(hv);    }
     aaNetWebsocketClose(&cd->wock);
-    if(cd->do_close==0)   { aaDebugf("closeline %u",__LINE__);  cd->do_close=1;    }
+    if(cd->is_close==0)   { aaDebugf("closeline %u",__LINE__);  cd->is_close=1;    }
     break;
     }
 
@@ -92369,7 +93012,7 @@ whatever is possible
     //aaDebugf("wrote rcve %i",bytes);
     break;
     }
-   aaNote(0,"binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
+   aaNote(0,"b binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
    break;
    }
   }
@@ -92377,6 +93020,19 @@ whatever is possible
  }
 
 
+
+
+
+ B aaNetWebsocketClientClose           (_websocketclient*websocketclient)
+ {
+ _websocketclientcalldata*cd;
+ if(websocketclient==NULL) { return RET_MISSINGPARM; }
+ if(websocketclient->magic!=aaHPP(aaNetWebsocketClientNew)) { return RET_NOTINITIALIZED; }
+ cd=(_websocketclientcalldata*)websocketclient->call.status.extra_data;
+ if(cd->is_close!=0) { return RET_YES; }
+ cd->is_close=1;
+ return RET_YES;
+ }
 
 
 

@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2023, Ashod Apakian
+// 2008-2023, Ashot Apakian ver 276
 /*-----------------------------------------------------------------------*/
 /******************************************************
  codeblocks: build options
@@ -1294,6 +1294,7 @@
  B aaTimeEpochGet                      (QP secs,QP microsecs);
  B aaTimeUtcExGet                      (QP utc);
  B aaTimeUtcExToText                   (Q utcex,VP txt,B doms);
+ B aaTimeUtcExToTime                   (Q utcex,_systime*systime);
  Q aaTimeStamp                         (QP utcex);
  B aaTimeUniversalClockGet             (QP utc);
 
@@ -1427,6 +1428,7 @@
  B aaMemoryUnitRelease                 (_memoryunit*memoryunit);
  B aaMemoryWorkingSetSizeSet           (H minbytes,H maxbytes);
  B aaMemoryWorkingSetFlush             (V);
+ B aaMemoryStackSizeGet                (HP bytes);
 
 
 
@@ -1923,7 +1925,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...);
  B aaStringStartsWithContains          (VP str,H chars,VP sstr,H schars,B isand,VP contains,...);
  B aaStringHexFromMemory               (VP str,HP chars,H bytes,VP data,B appendnull);
  B aaStringHexToMemory                 (VP str,H chars,HP bytes,VP data);
- B aaStringDollars                     (VP str,B adddollar,Q cents);
+ B aaStringDollars                     (VP str,B adddollar,B docents,Q cents);
 
  B aaStringSquareFieldKeyValGet        (VP str,H chars,H index,VP key,VP val);
  B aaStringSquareFieldKeyValFind       (VP str,H chars,HP index,VP key,VP val);
@@ -3702,7 +3704,6 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  Q pong_xmit_last_ms;
  Q ping_rcve_last_ms;
  Q pong_rcve_last_ms;
-
  }
  _websocket;
 
@@ -4139,6 +4140,16 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  _torprocess;
 
 
+ structure
+ {
+ H magic;
+ H stage;
+ W cport;
+ _tcpcallunit call;
+ }
+ _torchanger;
+
+
 
  structure
  {
@@ -4156,10 +4167,14 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaTorNew                            (_tor*tor,VP path,...);
  B aaTorDelete                         (_tor*tor);
  B aaTorRefresh                        (_tor*tor);
- B aaTorKill                           (_tor*tor,H index);
  B aaTorLaunch                         (_tor*tor,W cport,W sport,H cirsecs);
  B aaTorFind                           (_tor*tor,W cport,W sport,HP index,QP age);
 
+ B aaTorKiller                         (W cport,W sport);
+
+ B aaTorChangerNew                     (_torchanger*torchanger,W cport);
+ B aaTorChangerDelete                  (_torchanger*torchanger);
+ B aaTorChangerYield                   (_torchanger*torchanger);
 
 /*-----------------------------------------------------------------------*/
 
@@ -6848,6 +6863,15 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 
 /*-----------------------------------------------------------------------*/
 
+/*
+ structure
+ {
+ H tcp_handle;
+ _tcpcallstatus tcp_status;
+ VP tcp_data;
+ }
+ _websocketcallunit;
+ */
 
 
  structure
@@ -6859,17 +6883,25 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  _websockethdr;
 
 
+/*-----------------------------------------------------------------------*/
+
 
  structure
  {
  H ustage;
  B is_ws;
- B do_close;
+ B is_ready;
+ B is_close;
+// B is_closing;
+// B do_close;
  _websocket wock;
  _ioque ioque;
  B user_data[256];
  }
  _websocketclientcalldata;
+
+
+
 
 
  structure
@@ -6882,14 +6914,21 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  _websocketclient;
 
 
+/*-----------------------------------------------------------------------*/
+
+
  structure
  {
  H ustage;
  H stage;
  B is_ws;
- B do_close;
+ B is_ready;
+ B is_close;
+ B is_closing;
  _websocket wock;
  _ioque ioque;
+ B sys_flag;
+ B user_data[256];
  }
  _websocketservercalldata;
 
@@ -6904,15 +6943,18 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  _netadr adr;
  _tcpportunit port;
  _tcpcallunit call;
- _websocketservercalldata*cd;
+ _websocketservercalldata*scd;
  }
  _websocketserver;
 
+
+/*-----------------------------------------------------------------------*/
 
 
  B aaNetWebsocketClientNew             (_websocketclient*websocketclient,H sip,W sport,VP host,H ip,W port);
  B aaNetWebsocketClientDelete          (_websocketclient*websocketclient);
  B aaNetWebsocketClientYield           (_websocketclient*websocketclient);
+ B aaNetWebsocketClientClose           (_websocketclient*websocketclient);
  B aaNetWebsocketClientPktRead         (_websocketclient*websocketclient,_websockethdr*websockethdr,VP data);
  B aaNetWebsocketClientPktWrite        (_websocketclient*websocketclient,B oc,B ff,H bytes,VP data);
  B aaNetWebsocketClientPktWritef       (_websocketclient*websocketclient,B oc,B ff,VP fmt,...);
@@ -6920,14 +6962,11 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaNetWebsocketServerNew             (_websocketserver*websocketserver,H ip,W port,H maxcalls);
  B aaNetWebsocketServerDelete          (_websocketserver*websocketserver);
  B aaNetWebsocketServerYield           (_websocketserver*websocketserver);
- B aaNetWebsocketServerCallAnswer      (_websocketserver*websocketserver);
- B aaNetWebsocketServerCallDestroy     (_websocketserver*websocketserver);
- B aaNetWebsocketServerCallGet         (_websocketserver*websocketserver,H callhandle,_tcpcallstatus*callstatus);
- B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver,HP callhandle,_tcpcallstatus*callstatus);
+ B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver);//,HP callhandle,_tcpcallstatus*callstatus);
+ B aaNetWebsocketServerCallClose       (_websocketserver*websocketserver);
  B aaNetWebsocketServerPktRead         (_websocketserver*websocketserver,_websockethdr*websockethdr,VP data);
  B aaNetWebsocketServerPktWrite        (_websocketserver*websocketserver,B oc,B ff,H bytes,VP data);
  B aaNetWebsocketServerPktWritef       (_websocketserver*websocketserver,B oc,B ff,VP fmt,...);
-
 
 
 
