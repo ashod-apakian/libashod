@@ -92261,7 +92261,7 @@ whatever is possible
     continue;
     }
    if((ret=aaNetTcpCallAnswer(cu.handle))!=YES) { oops; }
-   aaDebugf("answ");
+   //aaDebugf("answ");
    aaNetTcpCallInactivityResetOn(cu.handle,YES,YES);
    aaNetTcpCallStatus(cu.handle,&cu.status);
    if(cu.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; }
@@ -92284,9 +92284,10 @@ whatever is possible
   switch(scd->is_close)
    {
    case 1:
-   //aaDebugf("line =%i dockios",__LINE__);
+//   aaDebugf("line =%i dockios",__LINE__);
    if(scd->is_ws&&scd->wock.is_open)
     {
+  //  aaDebugf("calling websocketclose");
     if((ret=aaNetWebsocketClose(&scd->wock))!=YES)  {   aaDebugf(">>>> %s %i %s",__FILE__,__LINE__,arets);     }
     }
    aaNetTcpCallClose(cu.handle);
@@ -92299,14 +92300,13 @@ whatever is possible
    case 2:
    if(scd->is_ready&&scd->is_closing!=YES)
     {
-    if(aaMathRand32(0,50)==0)
+    if(aaMathRand32(0,350)==0)
      {
-     aaDebugf("waiting closing %s,%s,%s,eb=%i isin=%i iscon=%i",
-     cu.status.src_dot,cu.status.local_dot,cu.status.remote_dot,  cu.status.extra_bytes,
-     cu.status.is_incoming,cu.status.is_connected );
+     aaDebugf("waiting closing %s,%s,%s,eb=%i isin=%i iscon=%i isclosin=%i isclose=%i",
+     cu.status.src_dot,cu.status.local_dot,cu.status.remote_dot,
+     cu.status.extra_bytes, cu.status.is_incoming,cu.status.is_connected,
+     scd->is_closing,scd->is_close   );
      }
-
-
     break;
     }
    if((ret=aaIoqueDelete(&scd->ioque))!=YES) { oops; }
@@ -92684,6 +92684,27 @@ whatever is possible
  return RET_YES;
  }
 
+
+
+
+
+
+ B aaNetWebsocketServerDuplicate       (_websocketserver*websocketserver,_websocketserver*swebsocketserver)
+ {
+ if(swebsocketserver==NULL) { return RET_MISSINGPARM; }
+ if(swebsocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+ if(websocketserver==NULL)  { return RET_MISSINGPARM; }
+ aaMemoryFill(websocketserver,sizeof(_websocketserver),0);
+ websocketserver->magic=swebsocketserver->magic;
+ websocketserver->max_calls=swebsocketserver->max_calls;
+ websocketserver->cur_calls=swebsocketserver->cur_calls;
+ websocketserver->tot_calls=swebsocketserver->tot_calls;
+ aaNetAdrCopy(&websocketserver->adr,&swebsocketserver->adr);
+ aaMemoryCopy(&websocketserver->port,sizeof(_tcpportunit),&swebsocketserver->port);
+ aaMemoryCopy(&websocketserver->call,sizeof(_tcpcallunit),&swebsocketserver->call);
+ websocketserver->scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+ return RET_YES;
+ }
 
 
 

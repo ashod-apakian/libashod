@@ -6962,6 +6962,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaNetWebsocketServerNew             (_websocketserver*websocketserver,H ip,W port,H maxcalls);
  B aaNetWebsocketServerDelete          (_websocketserver*websocketserver);
  B aaNetWebsocketServerYield           (_websocketserver*websocketserver);
+ B aaNetWebsocketServerDuplicate       (_websocketserver*websocketserver,_websocketserver*swebsocketserver);
  B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver);//,HP callhandle,_tcpcallstatus*callstatus);
  B aaNetWebsocketServerCallClose       (_websocketserver*websocketserver);
  B aaNetWebsocketServerPktRead         (_websocketserver*websocketserver,_websockethdr*websockethdr,VP data);
