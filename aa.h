@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2023, Ashot Apakian ver 277
+// 2008-2023, Ashot Apakian ver 278
 /*-----------------------------------------------------------------------*/
 /******************************************************
  codeblocks: build options
@@ -939,6 +939,10 @@
  PUB H aa_oof_count;
  PUB Q aa_stats[100];
  PUB u8p aa_cdecl;
+
+ PUB H aa_note_miss_count;
+ PUB H aa_note_show_count;
+ PUB H aa_note_kill_count;
 
  PUB C aa_last_executed_app[257];
 
