@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2023, Ashot Apakian ver 278
+// 2008-2024, Ashot Apakian ver 303
 /*-----------------------------------------------------------------------*/
  #include "aa.h"
 
@@ -15,7 +15,13 @@
  #pragma comment(lib,"user32.lib")
  #endif
 
- /** speed up  B aaStringFindCharVisible             (VP str,H chars,HP pos,B logic,H number,B fwd) */
+/**
+todo:
+speed up  B aaStringFindCharVisible             (VP str,H chars,HP pos,B logic,H number,B fwd)
+tls server
+unicode
+international fonts
+*/
 
 /* other compiler options
 -ffast-math
@@ -25,18 +31,13 @@ linker options
 -Wl,--stack,4194304
 */
 
-/**
- H aa_hyper_parm_0=10;   // aa_jsonSystemDecode
- H aa_hyper_parm_1=1;    // aaShellYield
- H aa_hyper_parm_2=4;    // aaShellRead
- H aa_hyper_parm_3=2;    // aaJsonStatus
-*/
 
  H aa_hyper_parm_0=32;   // aa_jsonSystemDecode
  H aa_hyper_parm_1=1;    // aaShellYield
  H aa_hyper_parm_2=3;    // aaShellRead was 4
  H aa_hyper_parm_3=2;    // aaJsonStatus , number of aa_jsonSystemDecode's called
 
+ H binerr_user_cntr=0;
 
 /*-----------------------------------------------------------------------*/
  V aaDummyFunction1                    (){} // this function is the first function offset, useful for aaFuncInfoGet
@@ -48,6 +49,8 @@ linker options
 
 /*-----------------------------------------------------------------------*/
 
+ B appLog                              (H index,H lines,VP fmt,...);
+
  H aa_note_kill_count                  =0;
  H aa_note_show_count                  =0;
  H aa_note_miss_count                  =0;
@@ -57,7 +60,7 @@ linker options
  H aa_last_line_executed               =__LINE__;
  H aa_user_line_executed               =0;
 
- #define aa_VERSION                    278
+ #define aa_VERSION                    303
 
 /*-----------------------------------------------------------------------*/
 
@@ -75,7 +78,7 @@ linker options
  #define WAGO
 
  #define Boop
- #define aa_SHOW_DIAG_LINES            99000
+ #define aa_SHOW_DIAG_LINES            100000
 
  #define aaLogStructSize(obj)          aaLog(-555,"%-24s : %-5u bytes",#obj,sizeof(obj))
 
@@ -220,7 +223,7 @@ linker options
  W MaximumLength;
  PWSTR Buffer;
  }
- UNICODE_STRING;
+ UNICODEx_STRING;
 
 
  structure
@@ -229,7 +232,7 @@ linker options
  W MaximumLength;
  PVOID64 Buffer;
  }
- UNICODE_STRING_WOW64;
+ UNICODEx_STRING_WOW64;
 
 
 
@@ -354,7 +357,6 @@ linker options
  T BOOL   (WINAPI *getProcessMemoryInfo)(HANDLE,PROCESS_MEMORY_COUNTERS*,DWORD);
  T BOOL   (WINAPI *getOpenFileName)    (OPENFILENAME*);
  T DWORD  (NTAPI  *NTQueryInformationProcess) (HANDLE,DWORD,PVOID,DWORD,PDWORD);
- //T INT    (WINAPI *wsaSetSocketSecurity) (SOCKET,SOCKET_SECURITY_SETTINGS*,ULONG,LPWSAOVERLAPPED,LPWSAOVERLAPPED_COMPLETION_ROUTINE);
  T BOOL   (WINAPI *getCurrentThreadStackLimits) (PULONG_PTR,PULONG_PTR);
 
 
@@ -419,7 +421,6 @@ linker options
  {0x0087,"GETDLGCODE"},{0x0088,"SYNCPAINT"},{0x00A0,"NCMOUSEMOVE"},{0x00A1,"NCLBUTTONDOWN"},
  {0x00A2,"NCLBUTTONUP"},{0x00A3,"NCLBUTTONDBLCLK"},{0x00A4,"NCRBUTTONDOWN"},{0x00A5,"NCRBUTTONUP"},
  {0x00A6,"NCRBUTTONDBLCLK"},{0x00A7,"NCMBUTTONDOWN"},{0x00A8,"NCMBUTTONUP"},{0x00A9,"NCMBUTTONDBLCLK"},
- //{0x0100,"KEYFIRST"},
  {0x0100,"KEYDOWN"},{0x0101,"KEYUP"},
  {0x0102,"CHAR"},{0x0103,"DEADCHAR"},
  {0x0104,"SYSKEYDOWN"},{0x0105,"SYSKEYUP"},
@@ -479,7 +480,6 @@ linker options
  HMODULE advapi_module;
  HMODULE psapi_module;
  HMODULE ntdll_module;
- //HMODULE wpu_module;
  setDllDirectory SetDllDirectory;
 
  getSystemTimes GetSystemTimes;
@@ -506,9 +506,6 @@ linker options
  getOpenFileName GetOpenFileName;
  NTQueryInformationProcess ntQueryInformationProcess;
  getCurrentThreadStackLimits GetCurrentThreadStackLimits;
-
- //T BOOL (*_gctsl)(PULONG_PTR,PULONG_PTR);
-// wsaSetSocketSecurity WSASetSocketSecurity;
 
  Q perf_frequency;
  Q perf_frequency_ms;
@@ -547,7 +544,6 @@ linker options
  B debugf_log_write_style;
  B debugf_prefix[129];
  VP debugf_proc;
- //B(*debugf_proc)(VP fmt,...);
  H aamain_tik;
  H aamain_elapsed;
  Q aamain_perftik;
@@ -594,7 +590,6 @@ linker options
 
  #define VAL_memd                      1684890989
  #define VAL_cyhz                      2053667171
- //#define VAL_data                      1635017060
  #define VAL_miqu                      1970366829
  #define VAL_misk                      1802725741
  #define VAL_timr                      1919773044
@@ -614,7 +609,6 @@ linker options
 
 
  #define aa_MEMMODULE_MAGIC            VAL_memd
- //#define aa_DATA_MAGIC                 VAL_data
  #define aa_MINIQUE_MAGIC              VAL_miqu
  #define aa_MINISTACK_MAGIC            VAL_misk
  #define aa_TIMER_MAGIC                VAL_timr
@@ -768,7 +762,6 @@ linker options
 
 /*-----------------------------------------------------------------------*/
 
-
  #define qsMAXSTACK                    (sizeof(size_t)*CHAR_BIT)
  #define qsEXCHANGE(a,b,size)          {Z s; ZP ai,bi; CP ac,bc; \
                                         ai=(ZP)a; bi=(ZP)b; for(s=sizeof(Z); s<=size; s+=sizeof(Z)) { Z t=*ai; *ai++=*bi; *bi++=t; } \
@@ -807,7 +800,6 @@ linker options
  #define aa_MEMORYTEMP_CgiRead         29
  #define aa_MEMORYTEMP_CallWritef      30
  #define aa_MEMORYTEMP_CallMirror      31
- //#define aa_MEMORYTEMP_FileWritef      32
  #define aa_MEMORYTEMP_StrHash         32
  #define aa_MEMORYTEMP_ClipWritef      33
  #define aa_MEMORYTEMP_IcmpWritef      34
@@ -891,7 +883,6 @@ linker options
  H tot_v_protect=0;
 
 /*-----------------------------------------------------------------------*/
-
  // apx 300meg of pages possible (300x256x4096)
 
  #define USE_PAGE_CRITICAL_SECTION     YES-1
@@ -2245,6 +2236,62 @@ _output_error:
 
 /*-----------------------------------------------------------------------*/
 
+ typedef enum TLS_State
+ {
+ TLS_STATE_BAD_CERTIFICATE                      =-8,// Bad or unsupported cert format.
+ TLS_STATE_SERVER_ASKED_FOR_CLIENT_CERTS        =-7,// Not supported.
+ TLS_STATE_CERTIFICATE_EXPIRED                  =-6,
+ TLS_STATE_BAD_HOSTNAME                         =-5,
+ TLS_STATE_CANNOT_VERIFY_CA_CHAIN               =-4,
+ TLS_STATE_NO_MATCHING_ENCRYPTION_ALGORITHMS    =-3,
+ TLS_STATE_INVALID_SOCKET                       =-2,
+ TLS_STATE_UNKNOWN_ERROR                        =-1,
+ TLS_STATE_DISCONNECTED                         = 0,
+ TLS_STATE_DISCONNECTED_BUT_PACKETS_STILL_REMAIN= 1, // The TCP socket closed,but you should keep calling `tls_read`.
+ TLS_STATE_PENDING                              = 2, // Handshake in progress.
+ TLS_STATE_CONNECTED                            = 3,
+ TLS_STATE_PACKET_QUEUE_FILLED                  = 4, // Not calling `tls_read` enough. Did you forget to call this in a loop after `tlsYield`?
+ }
+ TLS_State;
+
+
+ #define TLS_1_KB                      _1K
+ #define TLS_MAX_RECORD_SIZE           (16*TLS_1_KB)
+ #define TLS_MAX_PACKET_SIZE           (TLS_MAX_RECORD_SIZE+TLS_1_KB)
+
+ #define TLS_MIN(x, y)                 ((x)<(y)?(x):(y))
+ #define TLS_ARRAYSIZE(a)              (sizeof(a)/sizeof(*a))
+
+ #ifndef SCH_USE_STRONG_CRYPTO
+ #define SCH_USE_STRONG_CRYPTO         0x00400000
+ #endif
+
+ #define SP_PROT_TLS1_3_SERVER         0x00001000
+ #define SP_PROT_TLS1_3_CLIENT         0x00002000
+ #define SP_PROT_TLS1_2_CLIENT         0x00000800
+ #define SP_PROT_TLS1_2_SERVER         0x00000400
+ #define SP_PROT_TLS1_1_CLIENT         0x00000200
+ #define SP_PROT_TLS1_1_SERVER         0x00000100
+ #define SP_PROT_TLS1_0_CLIENT         SP_PROT_TLS1_CLIENT
+ #define SP_PROT_TLS1_0_SERVER         SP_PROT_TLS1_SERVER
+
+ #define SP_PROT_UNI                   (SP_PROT_UNI_CLIENT|SP_PROT_UNI_SERVER)
+ #define SP_PROT_DTLS                  (SP_PROT_DTLS_SERVER|SP_PROT_DTLS_CLIENT)
+ #define SP_PROT_DTLS1_0               (SP_PROT_DTLS1_0_SERVER|SP_PROT_DTLS1_0_CLIENT)
+ #define SP_PROT_DTLS1_2               (SP_PROT_DTLS1_2_SERVER|SP_PROT_DTLS1_2_CLIENT)
+ #define SP_PROT_TLS1_3                (SP_PROT_TLS1_3_CLIENT|SP_PROT_TLS1_3_SERVER)
+ #define SP_PROT_TLS1_2                (SP_PROT_TLS1_2_CLIENT|SP_PROT_TLS1_2_SERVER)
+ #define SP_PROT_TLS1_1                (SP_PROT_TLS1_1_CLIENT|SP_PROT_TLS1_1_SERVER)
+ #define SP_PROT_TLS1_0                (SP_PROT_TLS1_0_CLIENT|SP_PROT_TLS1_0_SERVER)
+
+ #define SEC_I_CONTEXT_EXPIRED         0x00090317
+ #define SEC_E_ILLEGAL_MESSAGE         0x80090326
+ #define SEC_E_ALGORITHM_MISMATCH      0x80090331
+
+
+//-----------------------------------------------------------------------
+
+
  #define aa_NET_RECENT_FREQ            1.0
  #define aa_NET_CLIENT_CALL_MAXEXTRA   _512K
  #define aa_NET_CGI_CLIENT_MAXBUF      _8K
@@ -2308,7 +2355,7 @@ _output_error:
  { "mpeg", "video/mpeg" },
  { "mpg",  "video/mpeg" },
  { "flv",  "video/x-flv" },
- { "avi",  "video/x-msvideo" },
+  { "avi",  "video/x-msvideo" },
  { "qt",   "video/quicktime" },
  { "mov",  "video/quicktime" },
  { "",     "" }
@@ -2504,7 +2551,6 @@ _output_error:
 
 
 
-
  structure
  {
  H self_handle;
@@ -2518,13 +2564,25 @@ _output_error:
 
 
 
+
  structure
  {
- H stage;
- _memoryunit in;
- H p_off;
+ H magic;
+ B is_attached;
+ B is_first_call;
+ H phaze;
+ s64 state;
+ CredHandle handle;
+ B incoming[TLS_MAX_PACKET_SIZE];
+ Z received;
+ Z available;
+ Z used;
+ SecPkgContext_StreamSizes sizes;
+ CtxtHandle context;
+ BP decrypted;
  }
- _aa_nettcpcalltls;
+ _aa_nettcpcall_tls_ctx;
+
 
 
 
@@ -2552,7 +2610,7 @@ _output_error:
  B is_rcve_backoff;
  B is_xmit_backoff;
  B is_xmit_slowdown;
- _aa_nettcpcalltls tlssys;
+ _aa_nettcpcall_tls_ctx tls_ctx;
  B system_data[256];
  }
  _aa_nettcpcallobject;
@@ -2734,11 +2792,17 @@ _output_error:
  V aa_NetDnsFromFormat                 (VP outhost);
  V aa_NetDnsToFormat                   (VP outdns);
  V aa_NetDnsReadName                   (BP reader,BP buffer,ZP count,BP name);
- B aa_NetTls2201Write                  (PP obtr);
- B aa_NetTlsYield                      (PP obtr);
  B aa_NetFtpClientResponseWait         (_ftpclient*ftpclient);
  B aa_NetFtpClientResponseYield        (_ftpclient*ftpclient);
  B aa_NetFtpClientAuxConnect           (_ftpclient*ftpclient,_netadr*adr);
+
+ B aa_NetTlsErrorString                (DWORD err,VP txt);
+ B aa_NetTlsInit                       (PP ptr);
+ B aa_NetTlsAttach                     (PP ptr);
+ B aa_NetTlsDetach                     (PP ptr);
+ V aa_NetTlsRecv                       (PP ptr);
+ Z aa_NetTlsSend                       (PP ptr,BP data,Z size);
+ B aa_NetTlsProcess                    (PP ptr);
 
 
 /*-----------------------------------------------------------------------*/
@@ -7441,7 +7505,7 @@ fail:
  Q aa_msrunning=0;
  Q aa_microsecsrunning=0;
  D aa_secsrunning=0;
- B aa_hide_diag=NO;
+ B aa_hide_diag=NO+0; //////////////////////////!!!!!!
  B aa_hide_leak=NO;
  B aa_hide_proc=NO;
  H aa_oof_count=0;
@@ -7498,7 +7562,7 @@ fail:
 
 
  aa.is_diag_paused=YES;
- aaLog(-555,"%s:#%i",__func__,__LINE__);
+ aaLog(-555,",%s:#%i",__func__,__LINE__);
 
  GetCurrentDirectory(MAX_PATH,(CP)path);
  aaStringCopy(name,path);
@@ -7527,8 +7591,9 @@ fail:
  aaStringAppendf(txt,"------------------------------------------------------\r\n");
  aaStringAppendf(txt,"**aaBoost has crashed**\r\n");
  aaStringAppendf(txt,"process_id=%i\r\n",aa.core_system.process_id);
+ aaStringAppendf(txt,"last executed %i  %i\r\n",aa_last_line_executed,aa_user_line_executed);
  aaStringAppendf(txt,"------------------------------------------------------\r\n");
- aaLog(-555,"%s",txt);
+ aaLog(-555,",,%s",txt);
  switch(exceptioninfo->ExceptionRecord->ExceptionCode)
   {
   case EXCEPTION_ACCESS_VIOLATION:               aaStringAppendf(txt,"REASON: access violation\r\n"); break;
@@ -7647,7 +7712,7 @@ fail:
    aaNote(0,"z %s",txt);
    }
   }
- aaLog(-1,"\n\n\n\n\n%s",txt);
+ aaLog(-1,",,,\n\n\n\n\n%s",txt);
  aa_CoreSystemHistory(0xffffffff,"\n\n%s",txt);
  if(aa.core_system.is_restart_on_crash==YES&&aa_msrunning>=aa.core_system.crash_msrunning_required)
   {
@@ -7692,7 +7757,7 @@ fail:
  val=0x01020304;
  bp=(BP)&val;
  if(*bp==1) { aa_bigendian=YES; aa_littleendian=NO; }
- else       { aa_bigendian=NO; aa_littleendian=YES; }
+ else       { aa_bigendian=NO;  aa_littleendian=YES; }
  is_aa_started=YES;
 
  while(1)
@@ -7759,6 +7824,7 @@ fail:
 
  if(aa.net_system.source_ip==0||aa.net_system.dnsserver_ip==0)
   {
+  //aaNote(0,"lipservice %i %s",__LINE__,__func__);
   aaNetLocalIpGet(&lip,0,1,1);
   for(li=0;li<32;li++)
    {
@@ -8150,6 +8216,8 @@ fail:
  Z WINAPI WinMain                      (HINSTANCE thisinst,HINSTANCE previnst,LPSTR cmdline,Z cmdshow)
  {
  H ec;
+ //aaNote(0,"%s",cmdline);
+ //oof;
  if(sizeof(_packdummy)!=13) { aaNote(0,"-fpack-struct not enabled"); return 0; }
  if(aa_firsttik_set==NO) { aa_firsttik=GetTickCount(); aa_firsttik_set=YES; }
  if(aaStart(thisinst,previnst,cmdline,cmdshow)!=YES) {  return 0; }
@@ -8658,7 +8726,8 @@ fail:
  H tik,ms_el,ms_dif;
  H shr,axs,ats,p,sl;
  HANDLE file_handle;
- B str[_512K],txt[_512K];
+ B str[_512K];
+ B txt[_512K];
  BP tmp,tmp2;
  B path[_1K];
  BOOL b;
@@ -9274,6 +9343,7 @@ fail:
     {
     if(aa.input_system.hKeyHook==0)
      {
+     //aaDebugf("%s %i",__func__,__LINE__);
      aa_InputSystemKeyEventProc(wnd,msg,wparm,lparm,0);
      }
     }
@@ -9674,7 +9744,10 @@ fail:
    }
   TranslateMessage(&msg);
   DispatchMessage(&msg);
-  if(aa.core_system.wm_quit_received==YES) {  return RET_NO; } // i added this line, 2007 - ashot, qekyfavu
+  if(aa.core_system.wm_quit_received==YES)
+   {
+   return RET_NO;
+   } // i added this line, 2007 - ashot, qekyfavu
   }
  else
   {
@@ -9689,10 +9762,11 @@ fail:
   break;
   }
  //go++;
- if((go++)>5) {  break; }
- //break;
+ //if((go++)>5) {  break; }
+ if((go++)>0) {  break; }
+ ///break;
  }
- while(1);
+ while(0); // was while(1) and go++>5
  return RET_YES;
  }
 
@@ -11235,6 +11309,7 @@ fail:
 
  if(fmt==NULL)
   {
+  //oof;
   OutputDebugString("DBGVIEWCLEAR");
   return RET_YES;
   }
@@ -17972,7 +18047,6 @@ redo:
   if(list->magic!=aaHPP(aaListNew))
    {
    ret=aaFileStreamOpenQuick(&han,str);
-   ///appLogf("%s filestreamopenquick %s = %s",__func__,str,arets);
    if(ret==RET_NOTFOUND) { return ret; }
    if(ret!=YES) { aaNote(0,"aa line=%i file=%s ret=%s",__LINE__,str,arets); return ret; }
    aaFileStreamStatus(han,&fs);
@@ -20148,6 +20222,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  aa_ObjectDefine(aa.net_system.cgiclient_object_id,sizeof(_aa_netcgiclientobject),_32K,64,aaNetCgiClientDestroy,"CgiCli");
  aa.net_system.net_status.max_tcp_calls=aa_NET_MAX_TCP_CALLS;
  aa.net_system.net_status.max_tcp_ports=aa_NET_MAX_TCP_PORTS;
+ ///aaNote(0,"lipservice %i %s",__LINE__,__func__);
  if((ret=aaNetLocalIpGet(&lip,NO,YES,YES))!=YES) { oops; }
  for(i=0;i<32;i++)
   {
@@ -20282,7 +20357,9 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     if(*locip==0)
      {
      aa_last_line_executed=__LINE__;
+     //oof;
      aa_NetSystemLocalHostGet(locip,1);
+     //oof;
      if(*locip==0) { return RET_FAILED; }
      }
     }
@@ -20677,7 +20754,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  B aa_NetSystemTcpCallCreate           (HP handle,H ip,W port,H sip,W sport)
  {
  B ret,isprot;
- _aa_nettcpcallobject*calp;
+  _aa_nettcpcallobject*calp;
  SOCKET sock;
  struct sockaddr_in addr;
  N error,oval,olen;
@@ -20685,90 +20762,54 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  UNUSE(olen);
  UNUSE(sip);
  UNUSE(sport);
- //SOCKET_SECURITY_SETTINGS basicSettings = {0};
- //SOCKET_SECURITY_SETTINGS* settings = NULL;
-
 
  if((ret=aa_ObjectCheck(aa.net_system.tcpcall_object_id,*handle,(VP)&calp,&isprot))!=RET_YES) { oops; return ret; }
  if(isprot==YES)      { oof; return RET_FORBIDDEN; }
- if(calp->dns_handle) { oof; return RET_BADSTATE; }
+ if(calp->dns_handle) { oof; return RET_BADSTATE;  }
+
  sock=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
  if(sock==INVALID_SOCKET)  {   aa_ObjectDestroy(aa.net_system.tcpcall_object_id,*handle);  *handle=0;  return RET_FAILED;  }
 
  if((sip||sport))//&&calp->status.is_incoming)
   {
   WinSockAddrSet(&addr,AF_INET,sip,htons(sport));
-  if(bind(sock,(struct sockaddr *)&addr,sizeof(addr)))
-   {
-   oow;
-   aa_ObjectDestroy(aa.net_system.tcpport_object_id,*handle);
-   closesocket(sock);
-   *handle=0;
-   return RET_INUSE;
-   }
+  if(bind(sock,(struct sockaddr *)&addr,sizeof(addr))) { oow; }
   }
 
-  calp->socket_used=YES;
-  WinSockAddrSet(&addr,AF_INET,ip,htons(port));
-  while(1)
+ calp->socket_used=YES;
+ WinSockAddrSet(&addr,AF_INET,ip,htons(port));
+ while(1)
+  {
+  if(WSAAsyncSelect(sock,aa.net_system.window,aa.net_system.tcp_message_id,FD_CONNECT|FD_CLOSE)) { oof; ret=RET_FAILED; break; }
+  error=connect(sock,(struct sockaddr *)&addr,sizeof(addr));
+  if(error==0) { oof; ret=RET_FAILED; break; }
+  if(error==SOCKET_ERROR)
    {
-   #if 0
-      basicSettings.SecurityProtocol = SOCKET_SECURITY_PROTOCOL_DEFAULT;
-      basicSettings.SecurityFlags =0x00000001;
-      settings = &basicSettings;
-   if((res=aa.core_system.WSASetSocketSecurity(sock,settings,sizeof(basicSettings),0,0))!=0) {  aaNote(0,"err=%i",WSAGetLastError());    }
-   #endif
-   if(WSAAsyncSelect(sock,aa.net_system.window,aa.net_system.tcp_message_id,FD_CONNECT|FD_CLOSE)) { oof; oow; ret=RET_FAILED; break; }
-   error=connect(sock,(struct sockaddr *)&addr,sizeof(addr));
-   if(error==0) { oof; ret=RET_FAILED; break; }
-   if(error==SOCKET_ERROR)
-    {
-    error=WSAGetLastError();
-    if(error==WSAENOBUFS||error!=WSAEWOULDBLOCK)
-     {
-     aaNote(0,"line=%i error=%i (%i,%i)",__LINE__,error,WSAENOBUFS,WSAEWOULDBLOCK);
-     aaDebugf("line=%i error=%i (%i,%i)",__LINE__,error,WSAENOBUFS,WSAEWOULDBLOCK);
-     ret=RET_FAILED;
-     break;
-     }
-    }
-   if((ret=aaQueCreate(&calp->xmit_que))!=RET_YES) {  break; }
-   if((ret=aaQueCreate(&calp->rcve_que))!=RET_YES) {  break; }
-   logg("tcpcallcreate xmit que handle = %i",calp->xmit_que);
-   logg("tcpcallcreate rcve que handle = %i",calp->rcve_que);
-   break;
+   error=WSAGetLastError();
+   if(error==WSAENOBUFS||error!=WSAEWOULDBLOCK) { ret=RET_FAILED;  break; }
    }
-  if(ret!=RET_YES)
-   {
-   oops;
-   logg("oops=%i line=%i",ret,__LINE__);
-   aa_ObjectDestroy(aa.net_system.tcpcall_object_id,*handle);
-   *handle=0;
-   return RET_FAILED;
-   }
-  calp->sock=sock;
-  calp->status.sock=sock;
-  calp->status.remote_adr.ip=ip;
-  calp->status.remote_adr.port=port;
-  if((ret=aa_NetSystemResolveIpPortPair(calp->sock,&calp->status.local_adr.ip,&calp->status.local_adr.port,0,0))!=YES)
-   {   oops;   }
-  aaNetAdrToString(&calp->status.remote_adr,calp->status.remote_dot);
-  aaNetAdrToString(&calp->status.local_adr,calp->status.local_dot);
-  calp->inactive_rcve_ms_root=calp->ms_root;
-  calp->inactive_xmit_ms_root=calp->ms_root;
-  if(0) { aaDebugf("aa_NetSystemTcpCallCreate handle=%u",*handle); }
-  ///aaDebugf("%u line=%i , aa_NetSystemTcpCallCreate current_outgoing_tcp_call_count++, ip=%i port=%i, sip=%i sport=%i",*handle,__LINE__,ip,port,sip,sport);
-  //aaDebugf("ip=%i port=%i, sip=%i sport=%i",ip,port,sip,sport);
+  if((ret=aaQueCreate(&calp->xmit_que))!=RET_YES) {  break; }
+  if((ret=aaQueCreate(&calp->rcve_que))!=RET_YES) {  break; }
+  break;
+  }
+ if(ret!=RET_YES) { oops; }
 
-
-  aa.net_system.net_status.current_outgoing_tcp_call_count++;
-  aa.net_system.net_status.total_outgoing_tcp_call_count++;
-  aaNetTcpCallSlicerLengthSet(*handle,_128K,_128K);
-  aaNetTcpCallBufferLengthSet(*handle,_32K,_32K);
-  calp->status.user_data=calp->user_data;
-  calp->status.user_bytes=sizeof(calp->user_data);
+ calp->sock=sock;
+ calp->status.sock=sock;
+ calp->status.remote_adr.ip=ip;
+ calp->status.remote_adr.port=port;
+ if((ret=aa_NetSystemResolveIpPortPair(calp->sock,&calp->status.local_adr.ip,&calp->status.local_adr.port,0,0))!=YES)   {   oops;   }
+ aaNetAdrToString(&calp->status.remote_adr,calp->status.remote_dot);
+ aaNetAdrToString(&calp->status.local_adr,calp->status.local_dot);
+ calp->inactive_rcve_ms_root=calp->ms_root;
+ calp->inactive_xmit_ms_root=calp->ms_root;
+ aa.net_system.net_status.current_outgoing_tcp_call_count++;
+ aa.net_system.net_status.total_outgoing_tcp_call_count++;
+ aaNetTcpCallSlicerLengthSet(*handle,_8K,_8K);
+ aaNetTcpCallBufferLengthSet(*handle,_32K,_32K);
+ calp->status.user_data=calp->user_data;
+ calp->status.user_bytes=sizeof(calp->user_data);
  aaNetTcpCallStatus(*handle,0);
- //aaDebugf(" ");
  return RET_YES;
  }
 
@@ -20835,15 +20876,22 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  _aa_nettcpcallobject*calp;
  _aa_queobject*quep;
  N done;
- H todo,err;
+ H todo,err,max_todo;
  B temp[_128K];
- H max_todo;
+ Z sent;
+
 
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
  if(mem==NULL)  { return RET_BADPARM; }
  aaCast(calp,_aa_nettcpcallobject*,*mem);
+
+ if(calp->status.is_tls==YES)
+  {
+  aa_NetTlsProcess(mem);
+  }
+ if(calp->status.is_good==NO) { return RET_YES; }
 
  if(calp->status.is_closed_by_local==YES)
   {
@@ -20855,11 +20903,14 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
   aaTimerTikElapsed(calp->remote_closed_ms_root,&calp->status.remote_closed_ms);
   calp->status.closed_ms=calp->status.remote_closed_ms;
   }
+
+
  max_todo=calp->status.rcve_slicer_length;
- if(calp->is_rcve_backoff==YES) { max_todo=1; }
+ if(calp->is_rcve_backoff==YES)     { max_todo=1; }
  if(calp->status.rcve_then_pause>0) { max_todo=1; }
 
- if(calp->status.is_rcve_paused==NO&&calp->is_rcve_backoff==NO)
+
+ if(calp->status.is_tls==NO&&calp->status.is_rcve_paused==NO&&calp->is_rcve_backoff==NO)
   {
   if((ret=aa_ObjectCheck(aa.que_system.object_id,calp->rcve_que,(VP)&quep,NULL))!=RET_YES) { return ret; }
   done=recv(calp->sock,(CP)temp,max_todo,0);
@@ -20870,8 +20921,8 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     {
     aaTimerTikGet(&calp->remote_closed_ms_root);
     calp->status.is_closed_by_remote=YES;
-    ///aaDebugf("by remote aa 1, sesh=%u han=%u, err=%u ",calp->status.session,calp->self_handle,err);
     }
+   //appLog(0,F32,"line=%i closed",__LINE__);
    }
   if(done==SOCKET_ERROR)
    {
@@ -20880,7 +20931,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     {
     if(calp->status.is_closed_by_remote!=YES) aaTimerTikGet(&calp->remote_closed_ms_root);
     calp->status.is_closed_by_remote=YES;
-    ///aaDebugf("closed by remote aa 2");
+    //appLog(0,F32,"line=%i closed",__LINE__);
     }
    else
    if(err!=WSAEWOULDBLOCK)
@@ -20889,32 +20940,35 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
      {
      aaTimerTikGet(&calp->remote_closed_ms_root);
      calp->status.is_closed_by_remote=YES;
-     ///aaDebugf("eee = %i",err);
+     //appLog(0,F32,"line=%i closed",__LINE__);
      }
     }
    }
   if(done!=SOCKET_ERROR&&done!=0)
    {
-   if((ret=aaQueWrite(calp->rcve_que,done,temp))!=RET_YES) { oof; Boop; return ret; }
-   aaQueStatus(calp->rcve_que,&qs);
-   calp->status.rcve_bytes=qs.bytes;
-   aa.net_system.net_status.total_tcp_bytes_in+=(Q)(done);
-   calp->status.rcve_bytes_total+=(Q)done;
-   aaTimerTikGet(&calp->inactive_rcve_ms_root);
-   calp->status.rcve_inactivity=0;
-   if(calp->status.rcve_then_pause>0)
-    {
-    if((H)done>=calp->status.rcve_then_pause) { calp->status.rcve_then_pause=0;  }
-    else                                     { calp->status.rcve_then_pause-=(H)done; }
-    if(calp->status.rcve_then_pause==0) { calp->status.is_rcve_paused=YES; }
+   ///appLog(0,F32,"Rreceived %i  istls=%i good=%i",done,calp->status.is_tls,calp->status.is_good);
+   ///=== decrypt if tls
+   temp[done]=0;
+    if((ret=aaQueWrite(calp->rcve_que,done,temp))!=RET_YES) { oof; Boop; return ret; }
+    aaQueStatus(calp->rcve_que,&qs);
+    calp->status.rcve_bytes=qs.bytes;
+    aa.net_system.net_status.total_tcp_bytes_in+=(Q)(done);
+    calp->status.rcve_bytes_total+=(Q)done;
+    aaTimerTikGet(&calp->inactive_rcve_ms_root);
+    calp->status.rcve_inactivity=0;
+    if(calp->status.rcve_then_pause>0)
+     {
+     if((H)done>=calp->status.rcve_then_pause) { calp->status.rcve_then_pause=0;  }
+     else                                      { calp->status.rcve_then_pause-=(H)done; }
+     if(calp->status.rcve_then_pause==0) { calp->status.is_rcve_paused=YES; }
+     }
     }
    }
-  }
- max_todo=calp->status.xmit_slicer_length;
- if(calp->is_xmit_slowdown||calp->is_xmit_backoff==YES) { max_todo=1;   }
- if(calp->status.xmit_then_pause>0) { max_todo=1; }
 
- if(calp->status.is_xmit_paused==NO)
+ max_todo=calp->status.xmit_slicer_length;
+ if(calp->is_xmit_slowdown||calp->is_xmit_backoff==YES) { max_todo=1; }
+ if(calp->status.xmit_then_pause>0)                     { max_todo=1; }
+ if(calp->status.is_xmit_paused==NO) //calp->status.is_good==YES&&
   {
   if((ret=aa_ObjectCheck(aa.que_system.object_id,calp->xmit_que,(VP)&quep,NULL))!=RET_YES) { return ret; }
   if(quep->status.bytes!=0)
@@ -20923,28 +20977,53 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    todo=aaNumRoof(todo,max_todo);
    todo=aaNumRoof(todo,sizeof(temp));
    if((ret=aaQuePeek(calp->xmit_que,0,todo,temp))!=RET_YES) { oof; Boop; return ret; }
+   ///=== encrypt
+   if(calp->status.is_tls==YES)
+    {
+    ///appLog(0,F32,"tls send %i",todo);
+    done=aa_NetTlsSend(mem,temp,todo);
+    if(done<=0) { oof; }
+    ///appLog(0,F32,"todo=%i done=%i",todo,done);
+    sent=done;
+    if((ret=aaQueDiscard(calp->xmit_que,sent))!=RET_YES) { aaNote(0,"process tcp done=%i todo=%i sent=%i",done,todo,sent); Boop;return ret; }
+    aaQueStatus(calp->xmit_que,&qs);
+    calp->status.xmit_bytes=qs.bytes;
+    aaTimerTikGet(&calp->inactive_xmit_ms_root);
+    calp->status.xmit_inactivity=0;
+    if(calp->is_xmit_slowdown) { calp->is_xmit_slowdown--;  }
+    if(calp->status.xmit_then_pause>0)
+     {
+     if((H)sent>=calp->status.xmit_then_pause) { calp->status.xmit_then_pause=0; }
+     else                                      { calp->status.xmit_then_pause-=(H)sent; }
+     if(calp->status.xmit_then_pause==0) {     calp->status.is_xmit_paused=YES; }
+     }
+    calp->status.xmit_bytes_total+=(Q)(sent);
+    aa.net_system.net_status.total_tcp_bytes_out+=(Q)(sent);
+//    appLog(0,F32,"process tcp %i",__LINE__);
+    }
+  else
+   {
    done=send(calp->sock,(CP)temp,todo,0);
    if(done==SOCKET_ERROR)
     {
     err=WSAGetLastError();
     if(err==10035||err==10055)
      {
-     if(calp->is_xmit_slowdown<100)
-      {
-      calp->is_xmit_slowdown++;
-      }
+     if(calp->is_xmit_slowdown<100) { calp->is_xmit_slowdown++;      }
      }
     if(err==WSAECONNRESET)
      {
      if(calp->status.is_closed_by_remote!=YES) aaTimerTikGet(&calp->remote_closed_ms_root);
      calp->status.is_closed_by_remote=YES;
-     ///aaDebugf("closed by remote aa 3");
+     //appLog(0,F32,"line=%i closed",__LINE__);
      }
     }
    if(done!=SOCKET_ERROR)
     {
     if(done!=0)
      {
+     temp[done]=0;
+     ///appLog(0,F32,"%s sent %-4i [%s]",__func__,done,temp);
      if((ret=aaQueDiscard(calp->xmit_que,done))!=RET_YES) { oof; Boop;return ret; }
      aaQueStatus(calp->xmit_que,&qs);
      calp->status.xmit_bytes=qs.bytes;
@@ -20963,20 +21042,27 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     }
    }
   }
- else
+ }
+
+
+ if(calp->rcve_que!=0)
   {
-  //aaDebugf("eoke");
+  if((ret=aaQueStatus(calp->rcve_que,&qs))!=RET_YES) { oops; Boop; return ret; }
+  calp->status.rcve_bytes=qs.bytes;
   }
- if((ret=aaQueStatus(calp->rcve_que,&qs))!=RET_YES) { oof; Boop; return ret; }
- calp->status.rcve_bytes=qs.bytes;
-  if((ret=aaQueStatus(calp->xmit_que,&qs))!=RET_YES) { oof; Boop;return ret; }
+ if(calp->xmit_que!=0)
+  {
+  if((ret=aaQueStatus(calp->xmit_que,&qs))!=RET_YES) { oops; Boop;return ret; }
   calp->status.xmit_bytes=qs.bytes;
+  }
+
  if(calp->status.max_rcve_rate!=0)
   {
   if(calp->is_rcve_backoff==NO&&calp->status.rcve_rate>(calp->status.max_rcve_rate*1.0))  {  calp->is_rcve_backoff=YES; }
   else
   if(calp->is_rcve_backoff==YES&&calp->status.rcve_rate<calp->status.max_rcve_rate) { calp->is_rcve_backoff=NO;  }
   }
+
  if(calp->status.max_xmit_rate!=0)
   {
   if(calp->is_xmit_backoff==NO&&calp->status.xmit_rate>(calp->status.max_xmit_rate*1.0))  {  calp->is_xmit_backoff=YES; }
@@ -20985,6 +21071,10 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
   }
  return RET_YES;
  }
+
+
+
+
 
 
 
@@ -21000,7 +21090,6 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  #endif
  if(mem==NULL)  { return RET_BADPARM; }
  aaCast(udpp,_aa_netudpobject*,*mem);
-//aaLog(-555,"%s",__func__);
  udpp->calc_timer_cycle++;
  aaTimerTikGet(&tik);
  aaTimerTikElapsedUsingTik(udpp->sub_tik,tik,&el);
@@ -21058,7 +21147,6 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  aa_ZIAG(__FUNCTION__);
  #endif
  if(mem==NULL)  { return RET_BADPARM; }
-// aaLog(-555,"%s",__func__);
  aaCast(udpp,_aa_netudpobject*,*mem);
  aa_NetSystemCalculateUdpTimers((VP)&udpp);
   FD_ZERO(&set);
@@ -21278,7 +21366,6 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
   }
  if((ret=aa_MemoryTemp((VP)&tmpbuf,_64K+_1K,aa_MEMORYTEMP_SniffProc))!=RET_YES) { oops; return ret; }
  bytes=recv(snifp->sock,(CP)tmpbuf,65535,0);
-
  if(bytes!=SOCKET_ERROR)
   {
   if(bytes>1500) { aaNote(0,"lll %i",bytes); }
@@ -21331,13 +21418,467 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
   int e=WSAGetLastError();
   if(e!=WSAEWOULDBLOCK) {}
   }
-
  return RET_NO;
  }
 
 
 
+//-----------------------------------------------------------------------
 
+
+
+
+ B aa_NetTlsErrorString                (DWORD err,VP txt)
+ {
+ aaStringNull(txt);
+ switch(err)
+  {
+  default:  aaStringCopyf(txt,"default %x",err);  break;
+  case SEC_E_OK: aaStringCopy(txt,"SEC_E_OK");  break;
+  case SEC_I_CONTINUE_NEEDED: aaStringCopy(txt,"SEC_I_CONTINUE_NEEDED");  break;
+  case SEC_I_COMPLETE_NEEDED: aaStringCopy(txt,"SEC_I_COMPLETE_NEEDED");  break;
+  case SEC_I_COMPLETE_AND_CONTINUE: aaStringCopy(txt,"SEC_I_COMPLETE_AND_CONTINUE");  break;
+  case SEC_E_INCOMPLETE_MESSAGE: aaStringCopy(txt,"SEC_E_INCOMPLETE_MESSAGE");  break;
+  case SEC_E_INVALID_HANDLE:  aaStringCopy(txt,"SEC_E_INVALID_HANDLE");  break;
+  case SEC_E_TARGET_UNKNOWN: aaStringCopy(txt,"SEC_E_TARGET_UNKNOWN");  break;
+  case SEC_E_LOGON_DENIED: aaStringCopy(txt,"SEC_E_LOGON_DENIED");  break;
+  case SEC_E_INTERNAL_ERROR: aaStringCopy(txt,"SEC_E_INTERNAL_ERROR");  break;
+  case SEC_E_NO_CREDENTIALS: aaStringCopy(txt,"SEC_E_NO_CREDENTIALS");  break;
+  case SEC_E_NO_AUTHENTICATING_AUTHORITY:  aaStringCopy(txt,"SEC_E_NO_AUTHENTICATING_AUTHORITY");  break;
+  }
+ return RET_YES;
+ }
+
+
+
+
+ B aa_NetTlsInit                       (PP ptr)
+ {
+ _aa_nettcpcallobject*calp;
+ _aa_nettcpcall_tls_ctx*ctx;
+ if(ptr==NULL) { return RET_BADPARM; }
+ aaCast(calp,_aa_nettcpcallobject*,*ptr);
+ aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
+ if(calp->status.is_tls!=YES) { oof; }
+ aaMemoryFill(ctx,sizeof(_aa_nettcpcall_tls_ctx),0);
+ ctx->magic=aaHPP(aa_NetTlsInit);
+ ctx->is_first_call=1;
+ ctx->phaze=100;
+ ctx->state=TLS_STATE_PENDING;
+ return RET_YES;
+ }
+
+
+
+
+
+ B aa_NetTlsAttach                     (PP ptr)
+ {
+ _aa_nettcpcallobject*calp;
+ _aa_nettcpcall_tls_ctx*ctx;
+ SCHANNEL_CRED cred;
+ Z ses;
+
+ if(ptr==NULL) { return RET_BADPARM; }
+ aaCast(calp,_aa_nettcpcallobject*,*ptr);
+ aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
+ if(ctx->is_attached)         { oof; }
+ if(calp->status.is_tls!=YES) { oof; }
+ aaMemoryFill(&cred,sizeof(cred),0);
+ cred.dwVersion=SCHANNEL_CRED_VERSION;
+ cred.dwFlags=SCH_USE_STRONG_CRYPTO|SCH_CRED_AUTO_CRED_VALIDATION|SCH_CRED_NO_DEFAULT_CREDS;
+ cred.grbitEnabledProtocols=SP_PROT_TLS1_2;
+ ses=AcquireCredentialsHandleA(NULL,(CP)UNISP_NAME_A,SECPKG_CRED_OUTBOUND,NULL,&cred,NULL,NULL,&ctx->handle,NULL);
+ if(ses!=SEC_E_OK) { aaNote(0,"acquire ses=%i",ses); }
+ ctx->is_attached=YES;
+ return RET_YES;
+ }
+
+
+
+
+
+
+
+ V aa_NetTlsRecv                       (PP ptr)
+ {
+ _aa_nettcpcallobject*calp;
+ _aa_nettcpcall_tls_ctx*ctx;
+ Z r,err;
+
+ aaCast(calp,_aa_nettcpcallobject*,*ptr);
+ aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
+ //appLog(0,F32,"entering tls rcve left=%i",sizeof(ctx->incoming)-ctx->received);
+ while(1)
+  {
+  r=recv(calp->sock,(CP)ctx->incoming+ctx->received,sizeof(ctx->incoming)-ctx->received,0);
+  if(r==SOCKET_ERROR)
+   {
+   err=WSAGetLastError();
+   if(err==WSAEWOULDBLOCK) { break; }
+   if(err==WSAECONNRESET)
+    {
+    if(calp->status.is_closed_by_remote!=YES) aaTimerTikGet(&calp->remote_closed_ms_root);
+    calp->status.is_closed_by_remote=YES;
+    //appLog(0,F32,"line=%i closed",__LINE__);
+    }
+   else
+//   if(err!=WSAEWOULDBLOCK)
+    {
+    //appLog(0,F32,"tls rcve err %i",err);
+    if(calp->status.is_closed_by_remote!=YES)
+     {
+     aaTimerTikGet(&calp->remote_closed_ms_root);
+     calp->status.is_closed_by_remote=YES;
+     //appLog(0,F32,"line=%i closed",__LINE__);
+     }
+    }
+   }
+  else
+   {
+   if(r!=0)
+    {
+   //ctx->incoming+ctx->received
+    ctx->received+=r;
+    ////appLog(0,F32,"r=%i ctx->rec=%i",r,ctx->received);
+    break;
+    }
+   //appLog(0,F32,"got here");
+   break;
+   }
+//  appLog(0,F32,"got here");
+  }
+ //appLog(0,F32,"out of tlsrcv");
+ }
+
+
+
+
+
+
+
+ Z aa_NetTlsSend                       (PP ptr,BP data,Z size)
+ {
+ _aa_nettcpcallobject*calp;
+ _aa_nettcpcall_tls_ctx*ctx;
+ Z totsent,use,sent,total,d,error;
+ char wbuffer[TLS_MAX_PACKET_SIZE];
+ SECURITY_STATUS sec;
+
+ aaCast(calp,_aa_nettcpcallobject*,*ptr);
+ aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
+ if(ctx->state<=0) { aaNote(0,"tlssend state=%i",ctx->state); return -1; }
+ if(ctx->is_attached!=YES)    { oof; }
+ if(calp->status.is_tls!=YES) { oof; }
+ //appLog(0,F32,"tlsssend %i",size);
+ totsent=0;
+ while(size!=0)
+  {
+  use=TLS_MIN(size, (int)ctx->sizes.cbMaximumMessage);
+  SecBuffer buffers[3];
+  buffers[0].BufferType = SECBUFFER_STREAM_HEADER;
+  buffers[0].pvBuffer = wbuffer;
+  buffers[0].cbBuffer = ctx->sizes.cbHeader;
+  buffers[1].BufferType = SECBUFFER_DATA;
+  buffers[1].pvBuffer = wbuffer + ctx->sizes.cbHeader;
+  buffers[1].cbBuffer = use;
+  buffers[2].BufferType = SECBUFFER_STREAM_TRAILER;
+  buffers[2].pvBuffer = wbuffer + ctx->sizes.cbHeader + use;
+  buffers[2].cbBuffer = ctx->sizes.cbTrailer;
+  memcpy(buffers[1].pvBuffer, data, use);
+  SecBufferDesc desc = { SECBUFFER_VERSION, TLS_ARRAYSIZE(buffers), buffers };
+  sec = EncryptMessage(&ctx->context, 0, &desc, 0);
+  if (sec != SEC_E_OK) { aaNote(0,"tlssend sec err=%x",sec); ctx->state = TLS_STATE_UNKNOWN_ERROR;	return -1;	}
+  total = buffers[0].cbBuffer + buffers[1].cbBuffer + buffers[2].cbBuffer;
+  sent = 0;
+
+  while (sent != total)
+   {
+		 d = send(calp->sock, wbuffer + sent, total - sent, 0);
+		if (d <= 0)
+		{
+		 error = WSAGetLastError();
+		// Error sending data to socket, or server disconnected.
+		if (error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)  { aaNote(0,"tlssend err=%i",error); ctx->state = TLS_STATE_UNKNOWN_ERROR; return -1; }
+		aaNote(0,"tlssend err=%i",error);
+		}
+		totsent+=use;
+		sent += d;
+
+	}
+  data = (void*)((uintptr_t)data + use);
+  size -= use;
+  }
+// appLog(0,F32,"totsent=%i",totsent);
+ return totsent;
+ }
+
+
+
+
+
+ B aa_NetTlsProcess                    (PP ptr)
+ {
+ _aa_nettcpcallobject*calp;
+ _aa_nettcpcall_tls_ctx*ctx;
+ SECURITY_STATUS sec;
+ DWORD flags;
+ Z size,d;
+ CP buffer;
+ B etxt[_1K];
+ _questatus qs;
+ B ret;
+ B data[_128K];
+
+ if(ptr==NULL) { oof; return RET_BADPARM; }
+ aaCast(calp,_aa_nettcpcallobject*,*ptr);
+ aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
+
+ if(calp->status.is_tls!=YES)  {  return RET_FAILED;  }
+
+ while(1)
+  {
+  switch(ctx->phaze)
+   {
+   case 0:
+   ctx->phaze=100;
+   break;
+
+
+   case 100:
+   if(calp->status.is_connected!=YES) { break; }
+   aa_NetTlsAttach(ptr);
+   ctx->phaze=130;
+   break;
+
+
+   case 130:
+   ctx->is_first_call=YES;
+   ctx->phaze=200;
+   break;
+
+
+
+   case 200:
+   if(ctx->is_first_call||ctx->received)
+    {
+    SecBuffer inbuffers[2] = { 0 };
+    inbuffers[0].BufferType = SECBUFFER_TOKEN;
+    inbuffers[0].pvBuffer = ctx->incoming;
+    inbuffers[0].cbBuffer = ctx->received;
+    inbuffers[1].BufferType = SECBUFFER_EMPTY;
+    SecBuffer outbuffers[1] = { 0 };
+    outbuffers[0].BufferType = SECBUFFER_TOKEN;
+    SecBufferDesc indesc = { SECBUFFER_VERSION, TLS_ARRAYSIZE(inbuffers), inbuffers };
+    SecBufferDesc outdesc = { SECBUFFER_VERSION, TLS_ARRAYSIZE(outbuffers), outbuffers };
+    flags=ISC_REQ_USE_SUPPLIED_CREDS|ISC_REQ_ALLOCATE_MEMORY|ISC_REQ_CONFIDENTIALITY|ISC_REQ_REPLAY_DETECT|ISC_REQ_SEQUENCE_DETECT|ISC_REQ_STREAM;
+    sec=InitializeSecurityContextA(&ctx->handle,
+                                  ctx->is_first_call?NULL:&ctx->context,
+                                  ctx->is_first_call?(SEC_CHAR*)calp->status.host:NULL,
+                                  flags,0,0,
+                                  ctx->is_first_call?NULL:&indesc,
+                                  0,
+                                  ctx->is_first_call?&ctx->context:NULL,
+                                  &outdesc,&flags,NULL);
+    ctx->is_first_call=NO;
+
+    if(inbuffers[1].BufferType==SECBUFFER_EXTRA)
+     {
+     memmove(ctx->incoming, ctx->incoming + (ctx->received - inbuffers[1].cbBuffer), inbuffers[1].cbBuffer);
+     //aaMemoryMove(ctx->incoming,inbuffers[1].cbBuffer,ctx->incoming+(ctx->received-inbuffers[1].cbBuffer));
+     ctx->received=inbuffers[1].cbBuffer;
+     }
+    else
+    if(inbuffers[1].BufferType!=SECBUFFER_MISSING)
+     {
+     ctx->received=0;
+     }
+
+    if(sec!=SEC_E_OK&&sec!=SEC_I_CONTINUE_NEEDED)
+     {
+     aa_NetTlsErrorString(sec,etxt);
+     ///appLog(0,F32,"etxt=%s, received=%i",etxt,ctx->received);
+     }
+
+    //============================================
+    if(sec==SEC_E_OK)
+     {
+     QueryContextAttributes(&ctx->context, SECPKG_ATTR_STREAM_SIZES, &ctx->sizes);
+     calp->status.is_good=YES;
+     //appLog(0,F32,"is good");
+     ctx->state=TLS_STATE_CONNECTED;
+     ctx->phaze=300;
+     return RET_YES;
+     }
+
+    if(sec==SEC_I_INCOMPLETE_CREDENTIALS)
+     {
+     ctx->state=TLS_STATE_SERVER_ASKED_FOR_CLIENT_CERTS;
+     return RET_NOTSUPPORTED;
+     }
+
+    if(sec==SEC_I_CONTINUE_NEEDED)
+     {
+     buffer=(CP)outbuffers[0].pvBuffer;
+     size=outbuffers[0].cbBuffer;
+     ///appLog(0,F32,"continue size=%i",size);
+     while(size!=0)
+      {
+      d=send(calp->sock,buffer,size,0);
+      if(d<=0)
+       {
+       //appLog(0,F32," send d=%i wsaerr=%i",d,WSAGetLastError());
+       break;
+       }
+     // aaMemoryCopy(crap,d,buffer);
+      //crap[d]=0;
+      size-=d;
+      buffer+=d;
+      }
+     FreeContextBuffer(outbuffers[0].pvBuffer);
+     if(size!=0)
+      {
+      ///appLog(0,F32,"%s:%i, somehow fail to send",__func__,__LINE__);
+      ctx->state=TLS_STATE_UNKNOWN_ERROR;
+      return RET_FAILED;
+      }
+     }
+    else
+    if(sec!=SEC_E_INCOMPLETE_MESSAGE)
+     {
+     switch(sec)
+      {
+      case SEC_E_CERT_EXPIRED:       ctx->state=TLS_STATE_CERTIFICATE_EXPIRED; break;
+      case SEC_E_WRONG_PRINCIPAL:    ctx->state=TLS_STATE_BAD_HOSTNAME; break;
+      case SEC_E_UNTRUSTED_ROOT:     ctx->state=TLS_STATE_CANNOT_VERIFY_CA_CHAIN; break;
+      case SEC_E_ILLEGAL_MESSAGE:
+      case SEC_E_ALGORITHM_MISMATCH: ctx->state=TLS_STATE_NO_MATCHING_ENCRYPTION_ALGORITHMS; break;
+      default:  ctx->state=TLS_STATE_UNKNOWN_ERROR; break;
+      }
+     return RET_FAILED;
+     }
+    else
+     {
+     }
+    }
+
+   if (ctx->received==sizeof(ctx->incoming))
+    {
+    //appLog(0,F32,"sending too much");
+    // Server is sending too much data instead of proper handshake?
+    ctx->state = TLS_STATE_UNKNOWN_ERROR;
+    return RET_OVERFLOW;
+    }
+   aa_NetTlsRecv(ptr);
+   break;
+
+
+
+   case 300:
+   aa_NetTlsRecv(ptr);
+
+   if(ctx->received!=0)
+    {
+    SecBuffer buffers[4];
+    buffers[0].BufferType = SECBUFFER_DATA;
+    buffers[0].pvBuffer = ctx->incoming;
+    buffers[0].cbBuffer = ctx->received;
+    buffers[1].BufferType = SECBUFFER_EMPTY;
+    buffers[2].BufferType = SECBUFFER_EMPTY;
+    buffers[3].BufferType = SECBUFFER_EMPTY;
+    SecBufferDesc desc = { SECBUFFER_VERSION, TLS_ARRAYSIZE(buffers), buffers };
+    sec = DecryptMessage(&ctx->context, &desc, 0, NULL);
+    aa_NetTlsErrorString(sec,etxt);
+    if(sec!=SEC_E_OK&&sec!=SEC_E_INCOMPLETE_MESSAGE)
+     {
+     //appLog(0,F32,"B etxt=%s, received=%i",etxt,ctx->received);
+     }
+
+    if(sec == SEC_E_OK)
+     {
+     ctx->decrypted = (BP)buffers[1].pvBuffer;
+     ctx->available = buffers[1].cbBuffer;
+     ctx->used = ctx->received - (buffers[3].BufferType == SECBUFFER_EXTRA ? buffers[3].cbBuffer : 0);
+     //appLog(0,F32,"used=%i",ctx->used);
+     }
+    else
+    if (sec == SEC_I_CONTEXT_EXPIRED)
+     {
+     ctx->state = TLS_STATE_DISCONNECTED;
+     //appLog(0,F32,"line=%i closed",__LINE__);
+     return ctx->state;
+     }
+    else
+    if (sec == SEC_I_RENEGOTIATE)
+     {
+     ctx->state = TLS_STATE_UNKNOWN_ERROR;
+     return ctx->state;
+     }
+    else
+    if (sec != SEC_E_INCOMPLETE_MESSAGE)
+     {
+     ctx->state = TLS_STATE_UNKNOWN_ERROR;
+     return ctx->state;
+     }
+    else
+     {
+     //TLS_ASSERT(sec == SEC_E_INCOMPLETE_MESSAGE);
+     // More data needs to be read.
+     //break;
+     ///appLog(0,F32,"more needed");
+     }
+    }
+   if(ctx->decrypted)
+    {
+    size=ctx->available;
+    memcpy(data,ctx->decrypted,size);
+    //aaMemoryCopy(data,size,ctx->decrypted);
+    memmove(ctx->incoming,ctx->incoming+ctx->used,ctx->received-ctx->used);
+    //aaMemoryMove(ctx->incoming,ctx->received-ctx->used,ctx->incoming+ctx->used);
+    ctx->received-=ctx->used;
+    ctx->used=0;
+    ctx->available=0;
+    ctx->decrypted=NULL;
+
+    #if 1 ////===============
+    data[size]=0;
+    ///appLog(0,F32,"rcve write %i",size);
+    if((ret=aaQueWrite(calp->rcve_que,size,data))!=RET_YES) { oof; Boop; return ret; }
+    aaQueStatus(calp->rcve_que,&qs);
+    calp->status.rcve_bytes=qs.bytes;
+    aa.net_system.net_status.total_tcp_bytes_in+=(Q)(size);
+    calp->status.rcve_bytes_total+=(Q)size;
+    aaTimerTikGet(&calp->inactive_rcve_ms_root);
+    calp->status.rcve_inactivity=0;
+    if(calp->status.rcve_then_pause>0)
+     {
+     if((H)size>=calp->status.rcve_then_pause) { calp->status.rcve_then_pause=0;  }
+     else                                      { calp->status.rcve_then_pause-=(H)size; }
+     if(calp->status.rcve_then_pause==0) { calp->status.is_rcve_paused=YES; }
+     }
+    if(ctx->state==TLS_STATE_DISCONNECTED)
+     {
+     ctx->state=TLS_STATE_DISCONNECTED_BUT_PACKETS_STILL_REMAIN;
+     //appLog(0,F32,"line=%i closed",__LINE__);
+     }
+    #endif
+    if (ctx->state == TLS_STATE_DISCONNECTED) { oof; ctx->state = TLS_STATE_DISCONNECTED_BUT_PACKETS_STILL_REMAIN;}
+    }
+   break;
+   }
+  break;
+  }
+ return ctx->state;
+ }
+
+
+
+
+
+
+
+/*-----------------------------------------------------------------------*/
+/*-----------------------------------------------------------------------*/
 
 
  K aa_NetSystemProc                    (HWND wnd,UINT msg,WPARAM wparm,LPARAM lparm)
@@ -21347,13 +21888,15 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  _aa_neticmpobject*icmpp;
  _aa_nettcpportobject*prtp;
  _aa_nettcpcallobject*calp;
+ _aa_nettcpcall_tls_ctx*ctx;
+
  N len;
  struct sockaddr_in addr;
  SOCKET new_sock;
- H call_handle,go,prq;
+ H call_handle,go,prq,sh;
  BP bp;
  _aa_objectinstanceheader*oih;
- H sh;
+ Z bnod;
  S B isin=0;
 
  if(isin==0)  {  isin=1;  }
@@ -21373,10 +21916,10 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    {
    switch(HIWORD(lparm))
     {
-    case 0:                dnsp->stage=3;   break; // complete
+    case 0:                 dnsp->stage=3;   break; // complete
     case WSAHOST_NOT_FOUND: dnsp->stage=2;   break; // dns not found
-    case WSANO_DATA: dnsp->stage=2;   break; // dns not found ( but i think this could mean something else )
-    default:    dnsp->stage=1; break; // dns failed
+    case WSANO_DATA:        dnsp->stage=2;   break; // dns not found ( but i think this could mean something else )
+    default:                dnsp->stage=1; break; // dns failed
     }
    logg("NetSystemProc: DnsEvent: = %i",HIWORD(lparm));
    }
@@ -21401,9 +21944,9 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
      }
     break;
     case FD_WRITE:    break;
-    case FD_ACCEPT:    break;
+    case FD_ACCEPT:   break;
     case FD_CLOSE:    break;
-    case FD_CONNECT:    break;
+    case FD_CONNECT:  break;
     }
    }
   isin=0;
@@ -21425,6 +21968,8 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
   return 0;
   }
 
+
+
  if(msg==aa.net_system.tcp_message_id)
   {
   switch(LOWORD(lparm))
@@ -21443,10 +21988,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     calp->status.sock=new_sock;
     calp->port_sock=wparm;
     calp->socket_used=YES;
-    if(aa_NetSystemResolveIpPortPair(calp->sock,&calp->status.local_adr.ip,&calp->status.local_adr.port,&calp->status.remote_adr.ip,&calp->status.remote_adr.port)!=YES)
-     {
-     logg("jesse");
-     }
+    if(aa_NetSystemResolveIpPortPair(calp->sock,&calp->status.local_adr.ip,&calp->status.local_adr.port,&calp->status.remote_adr.ip,&calp->status.remote_adr.port)!=YES) { oof; }
     aaTimerTikGet(&calp->ms_root);
     calp->inactive_rcve_ms_root=calp->ms_root;
     calp->inactive_xmit_ms_root=calp->ms_root;
@@ -21480,6 +22022,9 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    break;
 
 
+
+
+
    case FD_CONNECT:
    if(aa_NetSystemFindCallBySock(NULL,(VP)&calp,(SOCKET)wparm,NO,YES)==YES)
     {
@@ -21489,33 +22034,25 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
       {
       if(calp->status.is_closed_by_remote!=YES) aaTimerTikGet(&calp->remote_closed_ms_root);
       calp->status.is_closed_by_remote=YES;
-///      aaDebugf("closed by remote aa 4");
+      //appLog(0,F32,"line=%i closed",__LINE__);
       }
+     //appLog(0,F32,"line=%i closed",__LINE__);
      calp->status.is_closed=YES;
      break;
      }
-    if(WSAAsyncSelect(calp->sock,aa.net_system.window,aa.net_system.tcp_message_id,FD_CLOSE))
-     {
-     oof;
-     oow;
-     calp->status.is_failed=YES;
-     break;
-     }
-    if(aa_NetSystemResolveIpPortPair(calp->sock,&calp->status.local_adr.ip,&calp->status.local_adr.port,&calp->status.remote_adr.ip,&calp->status.remote_adr.port)!=YES)
-     {
-     aaNote(0,"ewdkewo");
-     }
+    if(WSAAsyncSelect(calp->sock,aa.net_system.window,aa.net_system.tcp_message_id,FD_CLOSE)) { oof; }
+    if(aa_NetSystemResolveIpPortPair(calp->sock,&calp->status.local_adr.ip,&calp->status.local_adr.port,&calp->status.remote_adr.ip,&calp->status.remote_adr.port)!=YES) { oof; }
     aaNetAdrToString(&calp->status.local_adr,calp->status.local_dot);
     aaNetAdrToString(&calp->status.remote_adr,calp->status.remote_dot);
     aa.net_system.net_status.current_tcp_calls_connected++;
     calp->status.is_connected=YES;
-    if(calp->status.is_tls==NO)
-     {
-     calp->status.is_ready=YES;
-     }
+    aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
+    ctx->magic=0;
+    if(calp->status.is_tls)    {     aa_NetTlsInit((PP)&calp);     }
+    else                       {     calp->status.is_good=YES;     }
     if(calp->status.is_nodelay)
      {
-     Z bnod=(Z)calp->status.is_nodelay;
+     bnod=(Z)calp->status.is_nodelay;
      setsockopt(calp->sock,IPPROTO_TCP,TCP_NODELAY,(CP)&bnod,sizeof(Z));
      }
     }
@@ -21525,17 +22062,19 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    case FD_CLOSE:
    if(aa_NetSystemFindCallBySock(NULL,(VP)&calp,(SOCKET)wparm,NO,NO)==YES)
     {
-    if(calp->status.is_closed_by_remote!=YES) aaTimerTikGet(&calp->remote_closed_ms_root);
+    if(calp->status.is_closed_by_remote!=YES) { aaTimerTikGet(&calp->remote_closed_ms_root); }
     calp->status.is_closed_by_remote=YES;
-    ///aaDebugf("closed by remote aa 5");
     calp->status.is_closed=YES;
+    ///appLog(0,F32,"line=%i closed",__LINE__);
     }
    break;
+
 
    default:
    break;
    }
-    isin=0;
+
+  isin=0;
   return 0;
   }
 
@@ -21597,31 +22136,20 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  _aa_netudpobject*udpp;
  _aa_nettcpcallobject*calp;
  H go;
- //H tik,i,el[6];
 
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
- //aaTimerTikGet(&tik);
- //for(i=0;i<3;i++)  {  aaTimerTikElapsedUsingTik(aa.net_system.sub_yield_tik[i],tik,&el[i]);  }
-
-// if(el[0]>=(H)(1000.0/2.0))
-// if(el[0]>=20)//..0.0/2.0))
+ for(go=0;go<1;go++)
   {
-  for(go=0;go<1;go++)
+  if(aa_ObjectNext(aa.net_system.tcpcall_object_id,0,(VP)&calp,&aa.net_system.yield_tcpcall_counter)==YES)
    {
-   if(aa_ObjectNext(aa.net_system.tcpcall_object_id,0,(VP)&calp,&aa.net_system.yield_tcpcall_counter)==YES)
-    {
-    if(aa_NetSystemProcessTcp((VP)&calp)==YES) { break; }
-    //aa_NetTlsYield((VP)&calp);
-    }
+   if(aa_NetSystemProcessTcp((VP)&calp)==YES) { break; }
    }
-  //aa.net_system.sub_yield_tik[0]=tik;
-  }
- //if(el[1]>=(H)(1000.0/1.5))
-  {
-  if(aa_ObjectNext(aa.net_system.udp_object_id,0,(VP)&udpp,&aa.net_system.yield_udp_counter)==YES) {  aa_NetSystemProcessUdp((VP)&udpp); }
-  //aa.net_system.sub_yield_tik[1]=tik;
+  if(aa_ObjectNext(aa.net_system.udp_object_id,0,(VP)&udpp,&aa.net_system.yield_udp_counter)==YES)
+   {
+   aa_NetSystemProcessUdp((VP)&udpp);
+   }
   }
  return RET_YES;
  }
@@ -22111,7 +22639,8 @@ void ForceVisibleDisplay(HWND hwnd)
  bRes=0;
  for(i=0;ERROR_NO_MORE_ITEMS!=GetLastError();++i)
   {
-  memset(&devInfoData,0,sizeof(devInfoData));
+  //memset(&devInfoData,0,sizeof(devInfoData));
+  aaMemoryFill(&devInfoData,sizeof(devInfoData),0);
   devInfoData.cbSize=sizeof(devInfoData);
   if(SetupDiEnumDeviceInfo(devInfo,i,&devInfoData))
    {
@@ -22943,11 +23472,7 @@ BP aa_PngToMem                         (BP pixels,B quality,Z stride_bytes,Z x,Z
  aaLog(-555,"line=%i",__LINE__);
  if(stride_bytes==0) { stride_bytes=x*n; }
  if((ret=aaMemoryAllocate((VP)&filt,(x*n+1)*y))!=YES) { aaLog(-555,"line=%i",__LINE__); oops; return NULL; }
- //filt=(BP)malloc((x*n+1)*y);
- //if(!filt) { return 0; }
  if((ret=aaMemoryAllocate((VP)&line_buffer,(x*n)))!=YES) { aaLog(-555,"line=%i",__LINE__); aaMemoryRelease(filt); oops; return NULL; }
- //line_buffer=(CP)malloc(x*n);
- //if(!line_buffer) { free(filt); return 0; }
  for(j=0;j<y;++j)
   {
   S Z mapping[]={0,1,2,3,4};
@@ -23022,8 +23547,6 @@ BP aa_PngToMem                         (BP pixels,B quality,Z stride_bytes,Z x,Z
  aaLog(-555,"line=%i aboutto=%i",__LINE__,8+12+13+12+zlen+12);
  if((ret=aaMemoryAllocate((VP)&out,8+12+13+12+zlen+12))!=YES) { aaLog(-555,"line=%i",__LINE__); oops; return NULL; }
  aaLog(-555,"line=%i",__LINE__);
- //out=(BP)malloc(8+12+13+12+zlen+12);
- //if(!out) return 0;
  *out_len=8+12+13+12+zlen+12;
  o=out;
  aaMemoryCopy(o,8,sig);
@@ -25638,7 +26161,6 @@ aaInputEngine calls aaInputStateGet
  aa.input_system.hMouseHook=SetWindowsHookEx(WH_MOUSE_LL,(HOOKPROC)MouseEvent,hExe,0);
  if(aa.input_system.hMouseHook==NULL) { oow; }
  aa.input_system.is_logger_started=YES;
- aadebby("");
  //aaDebugf("%s",__func__);
  return RET_YES;
  }
@@ -25666,9 +26188,6 @@ aaInputEngine calls aaInputStateGet
  aa.input_system.hMouseHook=SetWindowsHookEx(WH_MOUSE_LL,(HOOKPROC)MouseEvent,hExe,0);
  if(aa.input_system.hMouseHook==NULL) { oow; }
  aa.input_system.logger_reset_tik=aaMsRunning();
- aadebby("");
- //aaDebugf("%s",__func__);
- //appLogf("%s",__func__);
  return RET_YES;
  }
 
@@ -25739,7 +26258,6 @@ aaInputEngine calls aaInputStateGet
   k=GetKeyState(VK_CAPITAL); if(aaBitGet(k,0)) { aa.input_system.is_caps=YES; }
   k=GetKeyState(VK_NUMLOCK); if(aaBitGet(k,0)) { aa.input_system.is_numl=YES; }
   k=GetKeyState(VK_SCROLL);  if(aaBitGet(k,0)) { aa.input_system.is_scrl=YES; }
-  aadebby("");
   //aaDebugf("%s",__func__);
   aa_InputKeyLoggerStart();
   }
@@ -26133,8 +26651,6 @@ aaInputEngine calls aaInputStateGet
 
  if(aa.input_system.ihke_que.handle==0)
   {
-  //aaDebugf("%s",__func__);
-  aadebby("");
   aa_InputSystemHookedKeyEngineStart();
   }
  if(inputstate==NULL) { return RET_BADPARM; }
@@ -26158,8 +26674,6 @@ aaInputEngine calls aaInputStateGet
  aaMemoryFill(&ihke,sizeof(ihke),0);
 
  oll=aa.input_system.is_left;
-// olm=aa.input_system.is_mid;
- //olr=aa.input_system.is_right;
 
  k=GetKeyState(VK_LBUTTON); if(aaBitGet(k,15)) { aa.input_system.is_left=YES;  } else { aa.input_system.is_left=NO;  }
  k=GetKeyState(VK_MBUTTON); if(aaBitGet(k,15)) { aa.input_system.is_mid=YES;   } else { aa.input_system.is_mid=NO;   }
@@ -26391,9 +26905,6 @@ aaInputEngine calls aaInputStateGet
  aa_ObjectUndefine(aa.audio_system.object_id);
  }
 
-
-
-//V appLogf                             (H every,VP fmt,...);
 
 
 
@@ -26758,16 +27269,18 @@ else
       audp->is_in_proc=0;
       }
 
-     if((mr=waveOutWrite((HWAVEOUT)audp->handle,p,sizeof(WAVEHDR)))!=MMSYSERR_NOERROR)  {   aaNote(0,"Waveoutwriteerror %i audp=%i",mr,audp->handle);      }
+     if((mr=waveOutWrite((HWAVEOUT)audp->handle,p,sizeof(WAVEHDR)))!=MMSYSERR_NOERROR)
+      {
+      aaDebugf("*** Waveoutwriteerror %i audp=%i (%i,%i,%i,%i)",mr,audp->handle,MMSYSERR_INVALHANDLE,MMSYSERR_NODRIVER,MMSYSERR_NOMEM,WAVERR_UNPREPARED);
+      //aaNote(0,"Waveoutwriteerror %i audp=%i (%i,%i,%i,%i)",mr,audp->handle,MMSYSERR_INVALHANDLE,MMSYSERR_NODRIVER,MMSYSERR_NOMEM,WAVERR_UNPREPARED);
+      }
      break;
      }
     }
    }
   else
    {
-//   appLogf(0,"audio que=%i",audp->status.blocks_qued,
-
-   }
+  }
 
   }
  return RET_YES;
@@ -27092,11 +27605,6 @@ else
  audp->status.block_position=audp->status.sample_position/audp->status.block_size;
  return RET_YES;
  }
-
-
-
-
-
 
 
 
@@ -28558,7 +29066,6 @@ else
  uint64_t aaS[8],aaW[80];
  register uint64_t t0,t1;
  QP qv;
-
 
  qv=(QP)digp->status.digest;
  for(i=0;i<8;i++)   {  aaS[i]=qv[i];  }
@@ -31435,6 +31942,7 @@ else
  aaCast(jsonp,_aa_jsonobject*,*mem);
  go=0;
  to=aa_hyper_parm_0;
+// aaDebugf("%s %i goto=%i,%i decstage=%i",__func__,__LINE__,go,to,jsonp->dec_stage);
  while(1)
  {
  if(go>=to) { break; } // drama was 300
@@ -31447,8 +31955,12 @@ else
   jsonp->dec_stage=300;
   break;
 
+
+
   case 300:
+  //aaDebugf("%s %i goto=%i,%i",__func__,__LINE__,go,to);
   if((ret=aaParserSeekToVisibleChar(&jsonp->pa,YES,YES))!=YES) {  jsonp->dec_stage=552;  break;   }
+  //aaDebugf("%s %i goto=%i,%i ch=%02x",__func__,__LINE__,go,to,jsonp->pa.ch);
   if(jsonp->pa.ch=='{')  { aa_JsonSystemDecoderType((VP)&jsonp,JSON_TYPE_OBJOPEN,jsonp->pa.offset,1,jsonp->pa.bp); aaParserSeek(&jsonp->pa,1);    break; }
   if(jsonp->pa.ch=='[')  { aa_JsonSystemDecoderType((VP)&jsonp,JSON_TYPE_ARRAYOPEN,jsonp->pa.offset,1,jsonp->pa.bp); aaParserSeek(&jsonp->pa,1);  break; }
   if(jsonp->pa.ch=='}')  { aa_JsonSystemDecoderType((VP)&jsonp,JSON_TYPE_OBJCLOSE,jsonp->pa.offset,1,jsonp->pa.bp); aaParserSeek(&jsonp->pa,1);   break; }
@@ -31457,15 +31969,23 @@ else
    {
    aaParserCopy(&jsonp->pb,&jsonp->pa,NO);
    aaParserSeek(&jsonp->pa,1);
+   //aaDebugf("%s %i ",__func__,__LINE__);
    while(1)
     {
+  //  aaDebugf("%s %i ",__func__,__LINE__);
     if(jsonp->pa.bp[0]==BSLASH_CHAR&&jsonp->pa.bp[1]==DQUOTE_CHAR) { aaParserSeek(&jsonp->pa,2); continue; }
+   // aaDebugf("%s %i ",__func__,__LINE__);
     if(jsonp->pa.bp[0]!=DQUOTE_CHAR)  { aaParserSeek(&jsonp->pa,1);  continue; }
+   // aaDebugf("%s %i ",__func__,__LINE__);
     sl=(jsonp->pa.offset-jsonp->pb.offset)+1;
+
+    //aaDebugf("%s %i ",__func__,__LINE__);
     aa_JsonSystemDecoderType((VP)&jsonp,JSON_TYPE_STRING,jsonp->pb.offset,sl,jsonp->pb.bp);
+    //aaDebugf("%s %i ",__func__,__LINE__);
     aaParserSeek(&jsonp->pa,1);
     break;
     }
+    //aaDebugf("%s %i ",__func__,__LINE__);
    break;
    }
   if(jsonp->pa.ch==':')
@@ -31486,6 +32006,7 @@ else
    }
   aaParserCopy(&jsonp->pb,&jsonp->pa,NO);
   aaParserSeek(&jsonp->pa,1);
+  //aaDebugf("%s %i goto=%i,%i",__func__,__LINE__,go,to);
   while(1)
    {
    if(aaCharIsVisible(jsonp->pa.bp[0])==NO||(jsonp->pa.bp[0]==','||jsonp->pa.bp[0]=='}'||jsonp->pa.bp[0]==']'))
@@ -31514,10 +32035,8 @@ else
 
 
 
-
-
-
   case 552:
+//  aaDebugf("%s %i goto=%i,%i",__func__,__LINE__,go,to);
   i=0;
   while(i<jsonp->status.lines)
    {
@@ -31581,19 +32100,20 @@ else
     if(tt0==JSON_TYPE_ARRAYOPEN)                                                { inc=1; code=JSON_CODE_ARRAY_OPEN;  break; }
     if(tt0==JSON_TYPE_OBJCLOSE)                                                 { inc=1; code=JSON_CODE_OBJ_CLOSE;  break; }
     if(tt0==JSON_TYPE_ARRAYCLOSE)                                               { inc=1; code=JSON_CODE_ARRAY_CLOSE; break; }
-    aaNote(0,"zze !! %i , i=%i  , %i , %i , %i",__LINE__,i,tt0,tt1,tt2);
+    //aaNote(0,"zze !! %i , i=%i  , %i , %i , %i",__LINE__,i,tt0,tt1,tt2);
+    jsonp->dec_stage=666;
     break;
     }
+   if(jsonp->dec_stage==666) { break; }
    //aaNote(0,"%i , i=%i  , inc=%i code=%i %i , %i , %i",__LINE__,i,inc,code,tt0,tt1,tt2);
    jsonp->status.line[i+0].inc=inc;
    jsonp->status.line[i+0].code=code;
    jsonp->status.last_line=i;
    i+=inc;
    }
+  if(jsonp->dec_stage==666) { break; }
   jsonp->dec_stage=576;
   break;
-
-
 
 
 
@@ -31816,48 +32336,6 @@ else
   break;
 
 
-#if 0
-  case 590:
-  rvc=0;
-  i=0;
-  while(i<jsonp->status.lines)
-   {
-   left=jsonp->status.lines-i;
-   if(left==0) { break; }
-   inc=jsonp->status.line[i+0].inc;
-   revline[rvc]=i;
-   rvc++;
-   i+=inc;
-   }
-  rvi=rvc-1;
-  while((N)rvi>=0)//F32)//i<jsonp->status.lines)
-   {
-   i=revline[rvi];
-   inc=jsonp->status.line[i+0].inc;
-   code=jsonp->status.line[i+0].code;
-   pl=jsonp->status.line[i+0].parent_line;
-   ol=jsonp->status.line[i+0].open_line;
-   cl=jsonp->status.line[i+0].close_line;
-   if(cl==-1) { rvi--; continue; }
-   if(ol!=-1) { rvi--; continue; }
-   if(pl!=-1) { rvi--; continue; }
-   if(rvi==0) { break; }
-   rvj=rvi-1;
-   while((N)rvj>=0)
-    {
-    j=revline[rvj];
-    if(jsonp->status.line[j+0].code!=2&&jsonp->status.line[j+0].code!=4&&
-       jsonp->status.line[j+0].code!=7&&jsonp->status.line[j+0].code!=8) { rvj--; continue; }
-     jsonp->status.line[i+0].parent_line=j;
-    break;
-    }
-   rvi--;
-   }
-  jsonp->dec_stage=592;
-  break;
-#endif
-
-
 
   case 592:
   i=0;
@@ -31930,241 +32408,8 @@ else
 
 
   case 593:
-  #if 0
-  jsonp->status.rows=0;
-  i=0;
-  while(i<jsonp->status.lines)
-   {
-   left=jsonp->status.lines-i;
-   if(left==0) { break; }
-   inc=jsonp->status.line[i].inc;
-   jsonp->status.row[jsonp->status.rows]=i;
-   jsonp->status.rows++;
-   if(jsonp->status.rows>=aaElementCount(jsonp->status.row)) { oof; }
-   i+=inc;
-   }
-  #endif
   jsonp->dec_stage=597;
   break;
-
-
-
-
-
-
-
-#if 0
-
-  case 596:
-  rvc=0;
-  i=0;
-  while(i<jsonp->status.lines)
-   {
-   left=jsonp->status.lines-i;
-   if(left==0) { break; }
-   inc=jsonp->status.line[i+0].inc;
-   revline[rvc]=i;
-   rvc++;
-   i+=inc;
-   }
-  rvi=rvc-1;
-  while((N)rvi>=0)
-   {
-   i=revline[rvi];
-   inc=jsonp->status.line[i+0].inc;
-   code=jsonp->status.line[i+0].code;
-
-
-   while(1)
-    {
-    ok=1;
-    if(code==JSON_CODE_KEY_VALUE) { break; }
-    if(code==JSON_CODE_VALUE)     { break; }
-    ok=0;
-    break;
-    }
-   if(ok==0) { rvi--; continue; }
-   #if 0
-   if(code!=JSON_CODE_KEY_ARRAY_EMPTY&&
-      code!=JSON_CODE_KEY_ARRAY_OPEN&&
-      code!=JSON_CODE_KEY_OBJ_EMPTY&&
-      code!=JSON_CODE_KEY_OBJ_OPEN&&
-      code!=JSON_CODE_KEY_VALUE&&
-      code!=JSON_CODE_VALUE&&
-      code!=JSON_CODE_OBJ_OPEN&&
-      code!=JSON_CODE_ARRAY_OPEN&&
-      code!=JSON_CODE_OBJ_CLOSE&&
-      code!=JSON_CODE_ARRAY_CLOSE) { rvi--; continue; }
-   #endif
-      //if(code!=JSON_CODE_OBJ_OPEN) { rvi--; continue; }
-
-
-   if(jsonp->status.line[i+0].parent_line!=-1) { rvi--; continue; }
-   if(jsonp->status.line[i+0].open_line!=-1) { rvi--; continue; }
-   ///if(jsonp->status.line[i+0].close_line!=-1) { rvi--; continue; }
-
-   pl=jsonp->status.line[i+0].parent_line;
-   if(pl!=-1) { rvi--; continue; }
-
-   kdep=jsonp->status.line[i+0].depth;
-   rvj=rvi;
-
-
-   while((N)rvj>=0)
-    {
-    j=revline[rvj];
-    if(i==j) { rvj--; continue; }
-    kinc=jsonp->status.line[j+0].inc;
-    kode=jsonp->status.line[j+0].code;
-    ok=0;
-
-    switch(kode)
-     {
-     default: oof; break;
-     case JSON_CODE_KEY_ARRAY_EMPTY: break;
-     case JSON_CODE_KEY_OBJ_EMPTY: break;
-     case JSON_CODE_KEY_VALUE: break;
-     case JSON_CODE_VALUE: break;
-     case JSON_CODE_OBJ_CLOSE: break;
-     case JSON_CODE_ARRAY_CLOSE: break;
-
-     case JSON_CODE_KEY_ARRAY_OPEN:
-     case JSON_CODE_KEY_OBJ_OPEN:
-     case JSON_CODE_OBJ_OPEN:
-     case JSON_CODE_ARRAY_OPEN:
-
-     switch(code)
-      {
-      case JSON_CODE_KEY_VALUE:
-      if( ((jsonp->status.line[j+0].depth+1)!=(kdep)) ) { break; }
-      ok=1;
-      break;
-
-      case JSON_CODE_VALUE:
-      if( ((jsonp->status.line[j+0].depth+1)!=(kdep)) ) { break; }
-      ok=1;
-      break;
-      }
-     break;
-     }
-
-    if(ok==1)
-     {
-     jsonp->status.line[revline[rvi]+0].parent_line=j;
-     rvi--;
-     continue;
-     }
-
-     rvj=-1234;
-     break;
-
-
-
-
-
-      /*
-     else
-     if(code==JSON_CODE_OBJ_OPEN)
-      {
-      if( ((jsonp->status.line[j+0].depth+0)!=(kdep))
-       && ((jsonp->status.line[j+0].depth+1)!=(kdep))
-       && ((jsonp->status.line[j+0].depth+2)!=(kdep))
-       ) { break; }
-      }
-     else
-      {
-      if( ((jsonp->status.line[j+0].depth+0)!=(kdep))
-       && ((jsonp->status.line[j+0].depth+1)!=(kdep))
-       && ((jsonp->status.line[j+0].depth+2)!=(kdep))
-       ) { break; }
-      }
-
-
-     //if( ((jsonp->status.line[j+0].depth+1)!=(kdep)) && ((jsonp->status.line[j+0].depth+2)!=(kdep))
-//     if( ((jsonp->status.line[j+0].depth+0)!=(kdep)) && ((jsonp->status.line[j+0].depth+1)!=(kdep))
-  //    ) { break; }
-      // && ((jsonp->status.line[j+0].depth+0)!=(kdep)) )   { break; }
-*/
-//     jsonp->status.line[revline[rvi]+0].parent_line=j;
-
-     /*
-     for(k=rvj;k<=rvi;k++)
-      {
-      if(k==rvj) { continue; }
-      if((jsonp->status.line[revline[k]+0].depth)!=(kdep)) { continue; }
-      //aaDebugf("setting at %i=%i",k,revline[k]);
-      //k=revline[rvj];
-      jsonp->status.line[revline[k]+0].parent_line=j;
-      }
-
-     */
-  //   rvj=-1234;
-     //break;
-     }
-    if(rvj==-1234) { break; }
-
-
-    rvj--;
-    }
-
-
-
-
-//   aaDebugf("rvi=%i code=%i",rvi,code);
-   rvi--;
-   }
-
-
-
-  jsonp->dec_stage=597;
-  break;
-#endif
-
-
-
-#if 0
-  case 596:
-  i=0;
-
-  while(i<jsonp->status.lines)
-   {
-  // aaDebugf("i=%i jsl=%i",i,jsonp->status.lines);
-   left=jsonp->status.lines-i;
-   if(left==0) { break; }
-   inc=jsonp->status.line[i+0].inc;
-   code=jsonp->status.line[i+0].code;
-   if(jsonp->status.line[i+0].elm_index!=0) { i+=inc; continue; }
-   cl=jsonp->status.line[i+0].close_line;
-   ex=jsonp->status.line[i+0].elm_code;
-   j=i;
-   cnt=1;
-   while(j<cl)
-    {
-//    aaDebugf("j=%i cl=%i",j,cl);
-    if(cl==-1) { break; }
-    if(jsonp->status.line[j+0].elm_code!=-1) { j+=jsonp->status.line[j+0].inc; continue; }
-    //if(jsonp->status.line[j+0].elm_code!=ex) { j+=jsonp->status.line[j+0].inc; continue; }
-    ///aaDebugf("wrote to line %i  j=%i i=%i ex=%i ix=%i",j,j,i,ex,cnt);
-    jsonp->status.line[j+0].elm_code=ex;
-    jsonp->status.line[j+0].elm_index=cnt;
-    cnt++;
-    j+=jsonp->status.line[j+0].inc;
-    continue;
-    }
-   i+=inc;
-   }
-
-  jsonp->dec_stage=597;
-  break;
-#endif
-
-
-
-
-
-
-
-
 
 
 
@@ -32177,6 +32422,14 @@ else
   break;
 
 
+
+  case 666:
+  jsonp->status.is_decoding=NO;
+  jsonp->status.decode_success=NO;
+  jsonp->status.decode_failure=YES;
+  go=1000;
+  ///aaNote(0,"666");
+  break;
 
 
   case 600:
@@ -43808,7 +44061,7 @@ soff=moff=stage=0;
  H sl,han;
  PROCESS_BASIC_INFORMATION pbi;
  VP pebAddress,rtlUserProcParamsAddress;
- UNICODE_STRING commandLine;
+ UNICODEx_STRING commandLine;
  BP tmpmem;
  B buf[_1K];
  UNUSE(space);
@@ -43972,7 +44225,7 @@ soff=moff=stage=0;
  BP tmpmem;
 // HMODULE mod;
  VP pebAddress,rtlUserProcParamsAddress;
- UNICODE_STRING commandLine;
+ UNICODEx_STRING commandLine;
  PROCESS_BASIC_INFORMATION pbi;
  //ntQueryInformationProcess NtQueryInformationProcess;
 
@@ -49160,6 +49413,7 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
      }
     if(done!=todo) oof;
     if(done==0) oof;
+///    aaLog(-555,"ha %s",read_buff);
     if((ret=aaQueWrite(cgop->s2c_que.handle,done,read_buff))!=YES) { oops; }
     aaNetCgiClientInactivityReset(handle,YES,NO);
     //doupdate=YES;
@@ -49691,311 +49945,6 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
 
 
 
- B aa_NetTls2201Write                  (PP obtr)
- {
- _aa_nettcpcallobject*calp;
- B buf[_2K];
- B hdr[_1K];
- H off;
- H len;
- H i,num;
- BP sp,dp;
- struct timeval tv;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(obtr==NULL)  { return RET_BADPARM; }
- aaCast(calp,_aa_nettcpcallobject*,*obtr);
- aaTimeGetOfDay(&tv);
- aaMemoryFill(buf,sizeof(buf),0);
- off=0;
- buf[off+0]=0x01; // msg type=client_hello
- buf[off+1]=0x00;
- buf[off+2]=0x00; // u24 msg len
- buf[off+3]=0x00;
- off+=4;
- buf[off+0]=0x03; // version 1.2
- buf[off+1]=0x03;
- buf[off+2]=(B)(((H)tv.tv_sec&0xff000000)>>24);
- buf[off+3]=(B)(((H)tv.tv_sec&0x00ff0000)>>16);
- buf[off+4]=(B)(((H)tv.tv_sec&0x0000ff00)>>8);
- buf[off+5]=(B)(((H)tv.tv_sec&0x000000ff));
- off+=6;
- aaMemoryRandomSet(&buf[off],28);
- off+=28;
- buf[off+0]=0; // no sesh
- off+=1;
- num=4;
- buf[off+0]=((num*2)/256);
- buf[off+1]=((num*2)%256);
- off+=2;
- for(i=0;i<num;i++)
-  {
-  switch(i)
-   {
-   case 0:  buf[off+0]=0x00;  buf[off+1]=0x04;  off+=2; break;// SSL_RC4_128_MD5 0x04
-   case 1:  buf[off+0]=0x00;  buf[off+1]=0x05;  off+=2; break;// SSL_RC4_128_SHA 0x05
-   case 2:  buf[off+0]=0x00;  buf[off+1]=0x2f;  off+=2; break;// SSL_AES128_SHA  0x2f
-   case 3:  buf[off+0]=0x00;  buf[off+1]=0x35;  off+=2; break;// SSL_AES256_SHA  0x35
-   default: oof; break;
-   }
-  }
- buf[off+0]=0x01; // 1 compression method
- buf[off+1]=0x00; // no compression
- off+=2;
- len=off-4;
- sp=(BP)&len;
- dp=(BP)&buf[1];
- dp[0]=sp[2];
- dp[1]=sp[1];
- dp[2]=sp[0];
- len=off;
- hdr[0]=22;
- hdr[1]=0x03;
- hdr[2]=0x03; // 1.2
- hdr[3]=(len/256);
- hdr[4]=(len%256);
- aaNetTcpCallWrite(calp->self_handle,5,hdr);
- aaNetTcpCallWrite(calp->self_handle,len,buf);
- aaNetTcpCallStatus(calp->self_handle,&calp->status);
- return RET_YES;
- }
-
-
-
-
- B aa_NetTls2202Rcvd                   (PP obtr)
- {
- BP bp,cp,pp;
- _aa_nettcpcallobject*calp;
- H len,size,left;
- H epoch;
- B randy[28];
- B sesh_len;
- B sesh[256];
- W chosen;
-
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(obtr==NULL)  { return RET_BADPARM; }
- aaCast(calp,_aa_nettcpcallobject*,*obtr);
- bp=(BP)calp->tlssys.in.mem;
- cp=(BP)&bp[5];
- len=(bp[3]*256)+bp[4];
- size=(cp[1]*65536)+(cp[2]*256)+(cp[3]);
- calp->tlssys.p_off=6;
- left=len-calp->tlssys.p_off;
- pp=(BP)&epoch;
- pp[3]=cp[calp->tlssys.p_off+0];
- pp[2]=cp[calp->tlssys.p_off+1];
- pp[1]=cp[calp->tlssys.p_off+2];
- pp[0]=cp[calp->tlssys.p_off+3];
- aaMemoryCopy(randy,28,&cp[calp->tlssys.p_off+4]);
- calp->tlssys.p_off+=32;
- sesh_len=cp[calp->tlssys.p_off+0];
- calp->tlssys.p_off+=1;
- if(sesh_len)
-  {
-  aaMemoryCopy(sesh,sesh_len,&cp[calp->tlssys.p_off+0]);
-  calp->tlssys.p_off+=sesh_len;
-  }
- aaMemoryCopy(&chosen,2,&cp[calp->tlssys.p_off+0]);
- chosen=aaNumSwapWord(chosen);
- calp->tlssys.p_off+=2;
- aaDebugf("epoch=%x",epoch);
- aaDebugf("sesh_len=%i",sesh_len);
- aaDebugf("chosen=%x",chosen);
- left=len-calp->tlssys.p_off;
- aaDebugf("len=%i off=%i left=%i",len,calp->tlssys.p_off,left);
- calp->tlssys.p_off+=size;
- return RET_YES;
- }
-
-
-
-
- B aa_NetTls220bRcvd                   (PP obtr)
- {
- BP bp,cp;
- _aa_nettcpcallobject*calp;
- H len,size,left;
- H used,length;
-
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(obtr==NULL)  { return RET_BADPARM; }
- aaCast(calp,_aa_nettcpcallobject*,*obtr);
- bp=(BP)calp->tlssys.in.mem;
- cp=(BP)&bp[5];
- len=(bp[3]*256)+bp[4];
- size=(cp[1]*65536)+(cp[2]*256)+(cp[3]);
- calp->tlssys.p_off=4;
- left=len-calp->tlssys.p_off;
- aaDebugf("p_off=%i + size=%i = %i",calp->tlssys.p_off,size,calp->tlssys.p_off+size);
- aa_NetAsn1LenGet(&cp[calp->tlssys.p_off+0],&used,&length);
- aaDebugf("used=%i length=%i",used,length);
- if(left) {}
- calp->tlssys.p_off+=size;
- return RET_YES;
- }
-
-
-
-
-
- B aa_NetTls220eRcvd                   (PP obtr)
- {
- BP bp,cp;
- _aa_nettcpcallobject*calp;
- H len,size,left;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(obtr==NULL)  { return RET_BADPARM; }
- aaCast(calp,_aa_nettcpcallobject*,*obtr);
- bp=(BP)calp->tlssys.in.mem;
- cp=(BP)&bp[5];
- len=(bp[3]*256)+bp[4];
- size=(cp[1]*65536)+(cp[2]*256)+(cp[3]);
- left=len-calp->tlssys.p_off;
- aaDebugf("p_off=%i + size=%i = %i",calp->tlssys.p_off,size,calp->tlssys.p_off+size);
- calp->tlssys.p_off+=size;
- if(left) {}
- return RET_YES;
- }
-
-
-
-
-
- B aa_NetTlsYield                      (PP obtr)
- {
- B ret;
- B buf[_4K];
- B txt[_4K];
- H len,left,todo;//,size;
- BP bp,cp;
- _aa_nettcpcallobject*calp;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(obtr==NULL)  { return RET_BADPARM; }
- aaCast(calp,_aa_nettcpcallobject*,*obtr);
- if(calp->status.is_tls==NO) { return RET_YES; }
- if(calp->status.is_connected!=YES) { return RET_NOTREADY; }
- switch(calp->tlssys.stage)
-  {
-  case 0:
-  calp->tlssys.stage=100;
-  break;
-
-
-
-  case 100:
-  aaDebugf("About to send clienthello");
-  aa_NetTls2201Write((PP)&calp); // sent clienthello
-  calp->tlssys.stage=115;
-  break;
-
-
-
-  case 115:
-  if(calp->tlssys.in.bytes==0)
-   {
-   aaDebugf("about to allocate tlssys.in,_20K");
-   if((ret=aaMemoryUnitAllocate(&calp->tlssys.in,_20K))!=YES) { oops; }
-   }
-  calp->tlssys.in.used=0;
-  calp->tlssys.stage=120;
-  break;
-
-
-
-  case 120:
-  if(calp->status.rcve_bytes<5) { break; }
-  aaNetTcpCallPeek(calp->self_handle,0,5,buf);
-  len=(buf[3]*256)+buf[4];
-  if(calp->status.rcve_bytes<(len+5)) { break; }
-  left=calp->tlssys.in.bytes-calp->tlssys.in.used;
-  if((len+5+_2K)>=left)
-   {
-   aaDebugf("about to re-allocate tlssys.in,%i",len+5+_8K);
-   if((ret=aaMemoryUnitReAllocate(&calp->tlssys.in,len+5+_8K))!=RET_YES) { oops; }
-   }
-  if(aaNetTcpCallRead(calp->self_handle,len+5,calp->tlssys.in.mem)!=YES) { oof; }
-  bp=(BP)calp->tlssys.in.mem;
-  cp=(BP)&bp[5];
-  aaDebugf("type=%02x ver=%i.%i len=%i",bp[0],bp[1],bp[2],len);
-  aaStringFromArrayHex(txt,1,5,32,YES,YES,bp);
-  aaDebugf("%s",txt);
-  todo=aaNumRoof(len,123);
-  aaStringFromArrayHex(txt,1,todo,32,YES,YES,cp);
-  aaDebugf("%s",txt);
-  if(bp[0]==22)
-   {
-   calp->tlssys.stage=1000;
-   break;
-   }
-  calp->tlssys.stage=115;
-  break;
-
-
-
-  case 1000:
-  bp=(BP)calp->tlssys.in.mem;
-  cp=(BP)&bp[5];
-  len=(bp[3]*256)+bp[4];
-  if(len>=1&&cp[0]==0x02)   {   calp->tlssys.stage=1100;   break;   }
-  if(len>=1&&cp[0]==0x0b)   {   calp->tlssys.stage=1300;   break;   }
-  if(len>=1&&cp[0]==0x0e)   {   calp->tlssys.stage=1500;   break;   }
-  aaDebugf("unhandled 1000");
-  calp->tlssys.stage=115;
-  break;
-
-  case 1100:
-  //bp=(BP)calp->tlssys.in.mem;
-  //cp=(BP)&bp[5];
-  //len=(bp[3]*256)+bp[4];
-  //size=(cp[1]*65536)+(cp[2]*256)+(cp[3]);
-  //aaDebugf("serverhello size=%i",size);
-  //calp->tlssys.p_off=0;
-  aa_NetTls2202Rcvd((PP)&calp);
-  calp->tlssys.stage=115;
-  break;
-
-  case 1300:
- // bp=(BP)calp->tlssys.in.mem;
- // cp=(BP)&bp[5];
- // len=(bp[3]*256)+bp[4];
- // size=(cp[1]*65536)+(cp[2]*256)+(cp[3]);
- // aaDebugf("servercert size=%i",size);
- // calp->tlssys.p_off=0;
-  aa_NetTls220bRcvd((PP)&calp);
-  calp->tlssys.stage=115;
-  break;
-
-  case 1500:
- // bp=(BP)calp->tlssys.in.mem;
- // cp=(BP)&bp[5];
- // len=(bp[3]*256)+bp[4];
- // size=(cp[1]*65536)+(cp[2]*256)+(cp[3]);
- // aaDebugf("serverdone size=%i",size);
- // calp->tlssys.p_off=0;
-  aa_NetTls220eRcvd((PP)&calp);
-  calp->tlssys.stage=115;
-  break;
-  }
-
- return RET_YES;
- }
-
 
 
 /*-----------------------------------------------------------------------*/
@@ -50159,7 +50108,7 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
   cgop->status.pid=cgop->pi.dwProcessId;
   cgop->status.thread_handle=cgop->pi.hThread;
   cgop->status.process_handle=cgop->pi.hProcess;
-  if(SetPriorityClass(cgop->status.process_handle,BELOW_NORMAL_PRIORITY_CLASS)==0) { oow; }
+  ////if(SetPriorityClass(cgop->status.process_handle,BELOW_NORMAL_PRIORITY_CLASS)==0) { oow; }
   aaQueStatus(cgop->c2s_que.handle,&cgop->c2s_que.status);
   aaQueStatus(cgop->s2c_que.handle,&cgop->s2c_que.status);
   break;
@@ -52766,6 +52715,7 @@ oof;
  if(ip==0)
   {
   if(handle) { *handle=0; }
+  //aaNote(0,"lipservice %i %s",__LINE__,__func__);
   aaNetLocalIpGet(&lip,NO,NO,NO);
   for(i=0;i<32;i++) {   if(lip.type[i]=='P') break;   }
   if(i==32)
@@ -53130,6 +53080,7 @@ oof;
    case WEBSOCKET_STAGE_OPEN:
    //if(cs.is_ready!=YES)   {   break;   }
    if(cs.is_connected!=YES) { break; }
+   if(cs.is_good!=YES)      { break; }
    if(cs.is_closed)         { break; }
    if(websocket->is_incoming==YES) //---- incoming calls !!!!!!!!!!!!!!!!!!!!!
     {
@@ -53274,6 +53225,7 @@ oof;
      case 26:
      //aaDebugf(".. rb=%i trb=%I64d",cs.rcve_bytes,cs.rcve_bytes_total);
      if((ret=aaNetTcpCallStringRead(websocket->tcp_handle,&chars,0,sizeof(buf)-2,buf))!=YES)    {      break;      }
+     //aaDebugf("%i %s",chars,buf);
      ///aaDebugf("client phaze=%i chars=%i buf=[%s]",websocket->phaze,chars,buf);
      if(chars>400)
       {
@@ -53330,13 +53282,14 @@ oof;
  if(websocket->is_close_sent==YES) { return RET_YES; }
  aaNetWebsocketWrite(websocket,WEBSOCKET_OPCODE_CLOSE,YES,0,0);
  websocket->is_close_sent=YES;
- //aaDebugf("websocket close sent");
+ ///aaDebugf("websocket close sent");
  return RET_YES;
  }
 
 
 
 
+#if 0
 
  B aaNetWebsocketWrite                 (_websocket*websocket,B opcode,B finflag,H bytes,VP data)
  {
@@ -53427,7 +53380,105 @@ oof;
  return RET_YES;
  }
 
+#else
 
+
+ B aaNetWebsocketWrite                 (_websocket*websocket,B opcode,B finflag,H bytes,VP data)
+ {
+ B ret;
+ _tcpcallstatus cs;
+ H mask,i,j,off,len,todo;
+ H pktbytes,pktdone;
+ Q qlen;
+ B buf[_512K];
+ BP mbp,bp;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(websocket==NULL) { return RET_MISSINGPARM; }
+ if(websocket->magic!=aaHPP(aaNetWebsocketInit)) { return RET_NOTINITIALIZED; }
+ if(websocket->stage!=WEBSOCKET_STAGE_OPEN)      { return RET_BADSTATE; }
+ if(websocket->is_close_sent==YES)               { return RET_NOTOPEN;  }
+ if(opcode>15)                                   { return RET_BADPARM; }
+ if(bytes==0&&data!=NULL&&opcode==WEBSOCKET_OPCODE_TEXT)    {  aaStringLen(data,&bytes);  }
+ if(bytes==0&&data!=NULL&&opcode==WEBSOCKET_OPCODE_BINARY)  {  aaStringLen(data,&bytes);  }
+ //aaDebugf("ksks %02x %i",opcode,bytes);
+ mbp=NULL;
+ aaMemoryRandomDwordSet(&mask,0x00000001,0xfffffffe);
+ i=opcode;
+ if(finflag) { i=aaBitSet(i,7); }
+ else        { i=aaBitClr(i,7); }
+ buf[0]=(B)i;
+ if(bytes<=125)
+  {
+  j=bytes;
+  if(websocket->is_incoming==NO) { j=aaBitSet(j,7); }
+  buf[1]=(B)j;
+  off=2;
+  }
+ else
+ if(bytes>=126&&bytes<65536)
+  {
+  j=126;
+  if(websocket->is_incoming==NO) { j=aaBitSet(j,7); }
+  buf[1]=(B)j;
+  j=aaNumSwapWord(bytes);
+  *(WP)&buf[2]=j;
+  off=4;
+  }
+ else
+  {
+  j=127;
+  if(websocket->is_incoming==NO) { j=aaBitSet(j,7); }
+  buf[1]=(B)j;
+  qlen=bytes;
+  *(QP)&buf[2]=qlen;
+  bp=(BP)&buf[2];
+  qlen=*(QP)&bp[0];;    qlen=aaNumSwapQuad(qlen);    *(QP)&bp[0]=qlen;
+  len=*(HP)&bp[0];       len=aaNumSwapDword(len);    *(HP)&bp[0]=len;
+  len=*(HP)&bp[4];       len=aaNumSwapDword(len);    *(HP)&bp[4]=len;
+  off=10;
+  }
+ if(websocket->is_incoming==NO)
+  {
+  *(HP)&buf[off]=mask;
+  aaCast(mbp,BP,&mask);
+  off+=4;
+  }
+ pktdone=0;
+ pktbytes=off+bytes;
+ //buf[0]=0; buf[1]=136;
+ aaNetTcpCallWrite(websocket->tcp_handle,off,buf);
+ //aaDebugf("write %i,,   %i %i",off,buf[0],buf[1]);
+ pktdone+=off;
+ j=0;
+ aaCast(bp,BP,data);
+ while(1)
+  {
+  todo=pktbytes-pktdone;
+  if(todo==0) break;
+  todo=aaNumRoof(todo,_2K);
+  if(websocket->is_incoming==NO)
+   {
+   for(i=0;i<todo;i++) { buf[i]=bp[j]^mbp[j%4]; j++; }
+   }
+  else
+   {
+   for(i=0;i<todo;i++) { buf[i]=bp[j]; j++; }
+   }
+   //aaDebugf("todo=%i done=%i",todo,pktdone);
+  aaNetTcpCallWrite(websocket->tcp_handle,todo,buf);
+  pktdone+=todo;
+  }
+ websocket->xmit_pkts_total++;
+ //aaDebugf("ksks");
+ if((ret=aaNetTcpCallStatus(websocket->tcp_handle,&cs))!=YES) { return ret; }
+ return RET_YES;
+ }
+
+
+#endif
 
 
 
@@ -53579,6 +53630,8 @@ oof;
  udpp->self_handle=*handle;
  sock=socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);
  if(sock==INVALID_SOCKET)  {  aa_ObjectDestroy(aa.net_system.udp_object_id,*handle);  *handle=0;  return RET_FAILED;  }
+
+ //aaNote(0,"lipservice %i %s",__LINE__,__func__);
  aaNetIpToString(ip,zot);
  ///aaLog(-555,"inside %s, ip=%s port=%i",__func__,zot,port);
 // if((ret=aaNetLocalIpGet(&lip,0,1,1))!=YES) { return ret;  }
@@ -53657,6 +53710,7 @@ oof;
   if((ret=aaNetUdpXmitSpeedSet(*handle,0.00000))!=RET_YES) { oops; }
   if((ret=aaNetUdpChecksumSet(*handle,NO))!=RET_YES) { oops;  }
 
+  //aaNote(0,"lipservice %i %s",__LINE__,__func__);
   if((ret=aaNetLocalIpGet(&lip,0,1,0))!=YES) { return ret;  }
 ///  aaLog(-555,"about to bcast");
   oval=1; if(setsockopt(udpp->sock,SOL_SOCKET,SO_BROADCAST,(CP)&oval,sizeof(oval))!=0) oof;
@@ -54405,7 +54459,7 @@ oof;
  */
  myip=aa.net_system.source_ip;
  if(serverport==0) { serverport=3478; }
- if(serverip==0) { return RET_BADPARM; }
+ if(serverip==0) { oof; return RET_BADPARM; }
  if(udphandle==0)
   {
   if((ret=aaNetUdpCreateAny(&han,0,49152,65535))!=RET_YES) { return ret; }
@@ -54969,6 +55023,7 @@ oof;
   while(1)
    {
    if(recv(prtp->sock,(CP)junk,576,0)<=0) { break; }
+   //appLog(0,F32,"%s recv",__func__);
    if(is_aa_quit_posted==YES) {  break; }
    if((go++)>10) { break; }
    }
@@ -55065,19 +55120,7 @@ oof;
  #endif
  if(port==0)                         {   return RET_BADPARM;  }
  if(ip==0&&aaStringIsNull(host)!=NO) {   return RET_BADPARM; }
- if((ret=aa_ObjectCreate(aa.net_system.tcpcall_object_id,handle,(VP)&calp))!=RET_YES)
-  {
-  oops;
-  aaNote(0,"%i %i",__LINE__,aa.net_system.sniff_object_id);
-  aaNote(0,"%i %i",__LINE__,aa.net_system.icmp_object_id);
-  aaNote(0,"%i %i",__LINE__,aa.net_system.udp_object_id);
-  aaNote(0,"%i %i",__LINE__,aa.net_system.stunclient_object_id);
-  aaNote(0,"%i %i",__LINE__,aa.net_system.tcpport_object_id);
-  aaNote(0,"%i %i",__LINE__,aa.net_system.tcpcall_object_id);
-  aaNote(0,"%i %i",__LINE__,aa.net_system.client_object_id);
-  aaNote(0,"%i %i",__LINE__,aa.net_system.cgiclient_object_id);
-  return ret;
-  }
+ if((ret=aa_ObjectCreate(aa.net_system.tcpcall_object_id,handle,(VP)&calp))!=RET_YES) { oops; }
  tls&=1;
  calp->status.is_tls=tls;
  calp->self_handle=*handle;
@@ -55106,11 +55149,9 @@ oof;
    calp->is_dns=NO;
    calp->status.is_resolving=NO;
    ip=aaLoopBack;
-   if(0) { aaDebugf("aaNetTcpCallCreate, calling  aa_NetSystemTcpCallCreate, line=%i ",__LINE__); }
    return(aa_NetSystemTcpCallCreate(handle,ip,port,calp->status.src_adr.ip,calp->status.src_adr.port));
    }
   }
-
 
  if(aaStringIsNull(host)==NO&&ip==0)
   {
@@ -55136,8 +55177,6 @@ oof;
      calp->status.is_resolving=NO;
      for(i=0;i<32;i++)      {      if(dcldptr->dns_status.ip[i]!=0) { ip=dcldptr->dns_status.ip[i]; break; }      }
      if(i==32) oof;
-
-     aaDebugf("aaNetTcpCallCreate, calling  aa_NetSystemTcpCallCreate, line=%i ",__LINE__);
      return(aa_NetSystemTcpCallCreate(handle,ip,port,calp->status.src_adr.ip,calp->status.src_adr.port));
      }
     dcldptr=NULL;
@@ -55145,13 +55184,13 @@ oof;
    if((ret=aaNetDnsCreate(&calp->dns_handle,host,1,0))!=YES) { oops; }
    calp->is_dns=1;
    calp->status.is_resolving=calp->is_dns;
-   ///aaCustomLog("resolving %s",host);
    return RET_YES;
    }
   if(ip!=0) { oof; }
   ip=ii;
   }
  //aaDebugf("aaNetTcpCallCreate, calling  aa_NetSystemTcpCallCreate, line=%i ",__LINE__);
+ //appLog(0,F32,"%s:%i about to call create",__func__,__LINE__);
  return(aa_NetSystemTcpCallCreate(handle,ip,port,calp->status.src_adr.ip,calp->status.src_adr.port));
  }
 
@@ -55162,6 +55201,7 @@ oof;
  {
  B ret;
  _aa_nettcpcallobject*calp;
+ _aa_nettcpcall_tls_ctx*ctx;
  _aa_nettcpportobject*prtp;
  B isprot;
  H port_handle;
@@ -55195,29 +55235,23 @@ oof;
  if(calp->status.is_closed_by_remote==NO)
   {
   calp->status.is_closed_by_local=YES;
+  //appLog(0,F32,"line=%i closed",__LINE__);
   }
  calp->status.is_close_protected=NO;
  aaNetTcpCallClose(handle);
- if(calp->xmit_que!=0)
-  {
-  if((ret=aaQueDestroy(calp->xmit_que))!=RET_YES) { oops; }
-  }
- if(calp->rcve_que!=0)
-  {
-  if((ret=aaQueDestroy(calp->rcve_que))!=RET_YES) { oops; }
-  }
- if(calp->status.is_incoming==NO)
-  {
-  if(0) { aaDebugf("%u line=%i aaNetTcpCallDestroy current_outgoing_tcp_call_count--",handle,__LINE__); }
-  aa.net_system.net_status.current_outgoing_tcp_call_count--;
-  }
- else
-  {
-  if(0) { aaDebugf("%u line=%i aaNetTcpCallDestroy current_incoming_tcp_call_count--",handle,__LINE__); }
-  aa.net_system.net_status.current_incoming_tcp_call_count--;
-  }
+ if(calp->xmit_que!=0) { if((ret=aaQueDestroy(calp->xmit_que))!=RET_YES) { oops; } }
+ if(calp->rcve_que!=0) { if((ret=aaQueDestroy(calp->rcve_que))!=RET_YES) { oops; } }
+ if(calp->status.is_incoming==NO) {  aa.net_system.net_status.current_outgoing_tcp_call_count--;  }
+ else                             {  aa.net_system.net_status.current_incoming_tcp_call_count--;  }
  if(calp->status.is_connected==YES)  {  aa.net_system.net_status.current_tcp_calls_connected--;  }
  if(calp->status.extra_bytes!=0)       {  if((ret=aaMemoryRelease(calp->status.extra_data))!=RET_YES) { oops; } calp->status.extra_bytes=0;  }
+ if(calp->status.is_tls)
+  {
+  aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
+  DeleteSecurityContext(&ctx->context);
+  FreeCredentialsHandle(&ctx->handle);
+  }
+
  if(calp->socket_used)
   {
   Z rr;
@@ -55272,6 +55306,7 @@ oof;
  {
  B ret;
  _aa_nettcpcallobject*calp;
+ //_aa_nettcpcall_tls_ctx*ctx;
  B junk[_2K];
  H go;
 
@@ -55289,6 +55324,7 @@ oof;
   while(1)
    {
    if(recv(calp->sock,(CP)junk,576,0)<=0) { break; }
+   appLog(0,F32,"%s recv",__func__);
    if(is_aa_quit_posted==YES) {  break; }
    if((go++)>10) { break; }
    }
@@ -55298,8 +55334,10 @@ oof;
    aaTimerTikGet(&calp->local_closed_ms_root);
    calp->status.local_closed_ms=0;
    calp->status.closed_ms=calp->status.local_closed_ms;
+   appLog(0,F32,"line=%i closed",__LINE__);
    }
   calp->status.is_closed_by_local=YES;
+  //appLog(0,F32,"line=%i closed",__LINE__);
   }
  return RET_YES;
  }
@@ -55320,13 +55358,10 @@ oof;
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.net_system.tcpcall_object_id,handle,(VP)&calp,NULL))!=RET_YES) { return ret; }
-
  aaTimerTikElapsed(calp->ms_root,&calp->status.ms);
-
  if(calp->dns_handle)
   {
-  ret=aaNetDnsStatus(calp->dns_handle,&dns_status);
-  if(ret!=YES) { oops; }
+  if((ret=aaNetDnsStatus(calp->dns_handle,&dns_status))!=YES) { oops; }
   if(dns_status.is_inprogress!=YES)
    {
    if(dns_status.is_found)
@@ -55357,18 +55392,15 @@ oof;
      calp->is_dns=0;
      calp->status.is_resolving=calp->is_dns;
      calp->dns_handle=0;
-     aaDebugf("aaNetTcpCallStatus, calling  aa_NetSystemTcpCallCreate, line=%i ",__LINE__);
      if((ret=aa_NetSystemTcpCallCreate(&handle,dns_status.ip[i],calp->status.remote_adr.port,calp->status.src_adr.ip,calp->status.src_adr.port))!=YES) { oops; }
      if(tcpcallstatus) { aaMemoryCopy(tcpcallstatus,sizeof(_tcpcallstatus),&calp->status); }
      return RET_YES;
      }
-
     dns_status.is_notfound=YES;
     }
 
    if(dns_status.is_notfound)
     {
-    aaDebugf("dns %s not found",dns_status.query);
     if((ret=aaNetDnsDestroy(calp->dns_handle))!=YES) { oops; }
     calp->is_dns=0;
     calp->status.is_resolving=calp->is_dns;
@@ -55378,6 +55410,7 @@ oof;
     if(tcpcallstatus) { aaMemoryCopy(tcpcallstatus,sizeof(_tcpcallstatus),&calp->status); }
     return RET_YES;
     }
+
    if(dns_status.is_failed)
     {
     if((ret=aaNetDnsDestroy(calp->dns_handle))!=YES) { oops; }
@@ -55389,16 +55422,15 @@ oof;
     return RET_YES;
     }
    }
+
   if(tcpcallstatus) { aaMemoryCopy(tcpcallstatus,sizeof(_tcpcallstatus),&calp->status); }
   return RET_YES;
   }
-
 
  if(calp->status.is_inprogress)
   {
   if(calp->status.is_connected==YES)
    {
-   if(calp->status.remote_adr.port==80)    {    }
    aa_NetSystemProcessTcp((VP)&calp);
    }
   }
@@ -55668,20 +55700,19 @@ oof;
  aaNetAdrToString(&calp->status.local_adr,calp->status.local_dot);
  calp->inactive_rcve_ms_root=calp->ms_root;
  calp->inactive_xmit_ms_root=calp->ms_root;
- aaDebugf("line=%i,  offer accept ",__LINE__);
+ if(0) { aaDebugf("line=%i,  offer accept ",__LINE__); }
 
  aa.net_system.net_status.current_outgoing_tcp_call_count++;
  aa.net_system.net_status.total_outgoing_tcp_call_count++;
- aaNetTcpCallSlicerLengthSet(*handle,_128K,_128K);
+ aaNetTcpCallSlicerLengthSet(*handle,_8K,_8K);
  aaNetTcpCallBufferLengthSet(*handle,_32K,_32K);
  calp->status.user_data=calp->user_data;
  calp->status.user_bytes=sizeof(calp->user_data);
  aa.net_system.net_status.current_tcp_calls_connected++;
  calp->status.is_connected=YES;
- if(calp->status.is_tls==NO)
-  {
-  calp->status.is_ready=YES;
-  }
+
+ calp->status.is_good=YES;
+
  aaStringCopyf(calp->status.host,"%s",tcpcallterms->call.status.host);
  calp->status.rcve_buffer_length=tcpcallterms->call.status.rcve_buffer_length;
  calp->status.xmit_buffer_length=tcpcallterms->call.status.xmit_buffer_length;
@@ -55741,13 +55772,13 @@ oof;
  prtp->status.calls_waiting--;
  prtp->status.calls_answered++;
  aa.net_system.net_status.current_tcp_calls_connected++;
+
  calp->status.is_connected=YES;
- if(calp->status.is_tls==NO)
-  {
-  calp->status.is_ready=YES;
-  }
+ calp->status.is_good=YES;
+
+
  #if 1
- aaNetTcpCallSlicerLengthSet(handle,_128K,_128K);
+ aaNetTcpCallSlicerLengthSet(handle,_8K,_8K);
  aaNetTcpCallBufferLengthSet(handle,_32K,_32K);
  #else
  aaNetTcpCallSlicerLengthSet(handle,_8K,_8K);
@@ -55783,7 +55814,7 @@ oof;
  #endif
  if((ret=aa_ObjectCheck(aa.net_system.tcpcall_object_id,handle,(VP)&calp,NULL))!=RET_YES)
   {
-  aaDebugf("%s #%i %s",__func__,__LINE__,arets);
+  if(0) { aaDebugf("%s #%i %s",__func__,__LINE__,arets); }
   //aaNote(0,"aax7 %i %s",handle,ret_string[ret]);
   return ret;
   }
@@ -55791,6 +55822,7 @@ oof;
  if(bytes==0) { return RET_YES; }
  if(data==NULL) { return RET_BADPARM; }
  aa_NetSystemProcessTcp((VP)&calp);
+
  #if 1
  if((ret=aaQueStatus(calp->xmit_que,&qs))!=RET_YES) { oops; }
  if(calp->status.xmit_bytes!=qs.bytes) { oof; }
@@ -55798,6 +55830,7 @@ oof;
  #endif
  aaCast(bp,BP,data);
  if(bytes==0) oof;
+ //appLog(0,F32,"%s: %i quewrite xmit %i",__func__,__LINE__,bytes);
  if((ret=aaQueWrite(calp->xmit_que,bytes,bp))!=RET_YES) { return ret; }
  if(calp->status.xmit_inactivity_reset_on_write)
   {
@@ -56196,11 +56229,16 @@ oof;
  ret=aaNetTcpCallStringLook(handle,0,0,0,&off,&len,&mo,maxchars,buf);
  if(chars) *chars=len;
  if(stringmode) *stringmode=mo;
- if(ret!=YES) { return ret; }
+ if(ret!=YES)
+  {
+  //appLog(0,F32,"call string ret=%i",ret);
+  return ret;
+  }
  if(off!=0) { oof; }
  if(mo==aa_STRINGMODE_LF)   { ma=1; } else
  if(mo==aa_STRINGMODE_CR)   { ma=1; } else
  if(mo==aa_STRINGMODE_CRLF) { ma=2; } else { oof; }
+ ///appLog(0,F32,"clll string read about to discard %i+%i",len,ma);
  if((ret=aaNetTcpCallDiscard(handle,len+ma))!=YES) { oops; }
  aaNetTcpCallStatus(handle,0);
  return ret;
@@ -56253,7 +56291,11 @@ oof;
  prevatatime=atatime=64;//512;
  aaNetTcpCallStatus(handle,0);
  have=calp->status.rcve_bytes;
- if(fromoff>=have) { return RET_NOTREADY; }
+ if(fromoff>=have)
+  {
+  //appLog(0,F32,"call look not ready %i %i",fromoff,have);
+  return RET_NOTREADY;
+  }
  have-=fromoff;
  off=cnt=frm=0;
  was_found=NO;
@@ -56320,6 +56362,7 @@ oof;
   }
  if(count) { *count=cnt; }
  if(was_found) { return RET_YES; }
+ //appLog(0,F32,"look ended");
  return RET_NOTREADY;
  }
 
@@ -56500,8 +56543,8 @@ oof;
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.net_system.tcpcall_object_id,handle,(VP)&calp,NULL))!=RET_YES) { return ret; }
- calp->status.rcve_slicer_length=aaNumClamp(rbytes,1,_64K);
- calp->status.xmit_slicer_length=aaNumClamp(xbytes,1,_64K);
+ calp->status.rcve_slicer_length=aaNumClamp(rbytes,1,_8K);
+ calp->status.xmit_slicer_length=aaNumClamp(xbytes,1,_8K);
  return RET_YES;
  }
 
@@ -61053,7 +61096,8 @@ oof;
 
   case 120:
   aaNetTcpCallStatus(redcall->tcpcall.handle,&redcall->tcpcall.status);
-  if(redcall->tcpcall.status.is_ready!=YES) { break; }
+  //if(redcall->tcpcall.status.is_ready!=YES) { break; }
+  if(redcall->tcpcall.status.is_good!=YES) { break; }
   if(aaStringIsEmpty(redcall->auth,YES)==NO) { redcall->stage=140; break; }
   redcall->stage=200;
   break;
@@ -66263,7 +66307,8 @@ else
   }
  if(mode==0||surp->status.icon_mem==NULL)
   {
-  aaNote(0,"line=%i mode=%i  %i x %i  %i,%i,%i",__LINE__,mode,sz.w,sz.h,bih.biCompression,bih.biClrUsed,bih.biBitCount);
+
+  //aaNote(0,"line=%i mode=%i  %i x %i  %i,%i,%i",__LINE__,mode,sz.w,sz.h,bih.biCompression,bih.biClrUsed,bih.biBitCount);
   return RET_FAILED;
   }
  surp->status.icon_resnum=resnum;
@@ -67076,190 +67121,6 @@ noscale:
 
 
 
-
-
-#if 0
-
- B aaSurfaceImageDraw                  (H handle,_size*imgsize,_rect*imgrect,VP img,_rect*drect,B hflip,B vflip,B xalpha)
- {
- B ret;
- _aa_surfaceobject*surp;
- _rect r1,r2;
- _aaDiv xdiv,ydiv;
- H y_off;
- register N x,y;
- register N z,dx,dy;
- N dx_tmp,dx_inc,dy_inc;
- _rgba*pn;
- _rgba*dpn;
- B ov;
- H WWW,HHH;
- H pre_stepx[4000];
- H pre_stepy[4000];
- H fulls,mods;
- _pixelstyle*pstylep;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if((ret=aa_ObjectCheck(aa.surface_system.object_id,handle,(VP)&surp,NULL))!=RET_YES) { return ret; }
- if(img==NULL) { return RET_BADPARM; }
- if((ret=aaSizeIsValid(imgsize))!=RET_YES) { return ret; }
- if(imgrect==NULL) { aaRectSet(&r1,0,0,imgsize->w,imgsize->h); }
- else              { aaRectCopy(&r1,imgrect);                  }
- if((ret=aaRectIsValid(&r1))!=RET_YES) { return ret; }
- if(drect==NULL) { aaRectSet(&r2,0,0,imgsize->w,imgsize->h); }
- else            { aaRectCopy(&r2,drect);                    }
- if((ret=aaRectIsValid(&r2))!=RET_YES) { return ret; }
-
- pstylep=(_pixelstyle*)&surp->status.pixl_style;
- UNUSE(pstylep);
-
-
- WWW=surp->status.size.w;
- HHH=surp->status.size.h;
-
- #if 1
- if(r2.w<r1.w&&r1.w%2!=0) {  r1.w+=1; oof;}
- if(r2.h<r1.h&&r1.h%2!=0) {  r1.h+=1; oof; }
- #endif
-
- aaNumDivInit(xdiv,r1.w,r2.w);
- aaNumDivInit(ydiv,r1.h,r2.h);
- aaNumDivReset(ydiv,r1.y);
- if(vflip==YES) { dy=(r2.y+r2.h)-1; dy_inc=-1; }
- else           { dy=r2.y; dy_inc=+1; }
- if(hflip==YES) { dx=(r2.x+r2.w)-1; dx_inc=-1; }
- else           { dx=r2.x; dx_inc=+1; }
- dx_tmp=dx;
- if(r1.w==r2.w&&r1.h==r2.h&&xalpha==255)  {   goto noscale;  }
- if(xalpha==0)
-  {
-  for(y=0;y<(N)r2.h;y++)
-   {
-   aaNumDivReset(xdiv,r1.x);
-   y_off=(ydiv.result*imgsize->w);
-   aaCast(pn,_rgba*,img);
-   pn+=y_off;
-   dx=dx_tmp;
-   for(x=0;x<(N)r2.w;x++)
-    {
-    surp->PixelPut(surp,dx,dy,&pn[xdiv.result]);
-    aaNumDivStepInc(xdiv);
-    dx+=dx_inc;
-    }
-   aaNumDivStepInc(ydiv);
-   dy+=dy_inc;
-   }
-  }
- else
-  if(xalpha==255)
-   {
-   if(r2.w>=aaElementCount(pre_stepx)) { aaNote(0,"prestepx fail, w=%i",r2.w); }
-   if(r2.h>=aaElementCount(pre_stepy)) { aaNote(0,"prestepy fail, h=%i",r2.h); }
-   aaNumDivReset(xdiv,r1.x);
-   for(x=0;x<(N)r2.w;x++) {  pre_stepx[x]=xdiv.result;             aaNumDivStepInc(xdiv);   }
-   aaNumDivReset(ydiv,r1.y);
-   for(y=0;y<(N)r2.h;y++) {  pre_stepy[y]=ydiv.result*imgsize->w;  aaNumDivStepInc(ydiv);   }
-   fulls=r2.w/16;
-   mods=r2.w%16;
-   for(y=0;y<(N)r2.h;y++)
-    {
-    aaCast(pn,_rgba*,img);
-    pn+=pre_stepy[y];
-    dx=dx_tmp;
-    aaCast(dpn,_rgba*,&surp->status.mem[(dy*WWW)]);
-    if(dy<(N)HHH)
-     {
-     z=0;
-     for(x=0;x<(N)fulls;x++)
-      {
-      dpn[dx]=pn[pre_stepx[z+ 0]];   dx+=dx_inc;      dpn[dx]=pn[pre_stepx[z+ 1]];   dx+=dx_inc;
-      dpn[dx]=pn[pre_stepx[z+ 2]];   dx+=dx_inc;      dpn[dx]=pn[pre_stepx[z+ 3]];   dx+=dx_inc;
-      dpn[dx]=pn[pre_stepx[z+ 4]];   dx+=dx_inc;      dpn[dx]=pn[pre_stepx[z+ 5]];   dx+=dx_inc;
-      dpn[dx]=pn[pre_stepx[z+ 6]];   dx+=dx_inc;      dpn[dx]=pn[pre_stepx[z+ 7]];   dx+=dx_inc;
-      dpn[dx]=pn[pre_stepx[z+ 8]];   dx+=dx_inc;      dpn[dx]=pn[pre_stepx[z+ 9]];   dx+=dx_inc;
-      dpn[dx]=pn[pre_stepx[z+10]];   dx+=dx_inc;      dpn[dx]=pn[pre_stepx[z+11]];   dx+=dx_inc;
-      dpn[dx]=pn[pre_stepx[z+12]];   dx+=dx_inc;      dpn[dx]=pn[pre_stepx[z+13]];   dx+=dx_inc;
-      dpn[dx]=pn[pre_stepx[z+14]];   dx+=dx_inc;      dpn[dx]=pn[pre_stepx[z+15]];   dx+=dx_inc;
-      z+=16;
-      }
-
-     z=fulls*16;
-     for(x=0;x<(N)mods;x++)
-      {
-      dpn[dx]=pn[pre_stepx[z]];
-      dx+=dx_inc;
-      z++;
-      }
-     }
-
-    dy+=dy_inc;
-    }
-   }
- else
-  {
-  for(y=0;y<(N)r2.h;y++)
-   {
-   aaNumDivReset(xdiv,r1.x);
-   y_off=(ydiv.result*imgsize->w);
-   aaCast(pn,_rgba*,img);
-   pn+=y_off;
-   dx=dx_tmp;
-   for(x=0;x<(N)r2.w;x++)
-    {
-    if(pn[xdiv.result].a!=0)
-     {
-     ov=pn[xdiv.result].a;
-     pn[xdiv.result].a=xalpha;
-     surp->PixelPut(surp,dx,dy,&pn[xdiv.result]);
-     pn[xdiv.result].a=ov;
-     }
-    aaNumDivStepInc(xdiv);
-    dx+=dx_inc;
-    }
-   aaNumDivStepInc(ydiv);   dy+=dy_inc;
-   }
-  }
- return RET_YES;
-
-noscale:
-
-  y_off=r1.y;
-   fulls=r2.w/16;
-   mods=r2.w%16;
-   for(y=0;y<(N)r2.h;y++)
-    {
-    aaCast(pn,_rgba*,img);
-    pn+=(y_off*imgsize->w)+r1.x;
-    aaCast(dpn,_rgba*,surp->status.mem);
-    dpn+=(dy*WWW);
-    dx=dx_tmp;
-    if(dy<(N)HHH)
-     {
-     z=0;
-     for(x=0;x<(N)fulls;x++)
-      {
-      dpn[dx]=pn[z+ 0];  dx+=dx_inc;      dpn[dx]=pn[z+ 1];  dx+=dx_inc;
-      dpn[dx]=pn[z+ 2];  dx+=dx_inc;      dpn[dx]=pn[z+ 3];  dx+=dx_inc;
-      dpn[dx]=pn[z+ 4];  dx+=dx_inc;      dpn[dx]=pn[z+ 5];  dx+=dx_inc;
-      dpn[dx]=pn[z+ 6];  dx+=dx_inc;      dpn[dx]=pn[z+ 7];  dx+=dx_inc;
-      dpn[dx]=pn[z+ 8];  dx+=dx_inc;      dpn[dx]=pn[z+ 9];  dx+=dx_inc;
-      dpn[dx]=pn[z+10];  dx+=dx_inc;      dpn[dx]=pn[z+11];  dx+=dx_inc;
-      dpn[dx]=pn[z+12];  dx+=dx_inc;      dpn[dx]=pn[z+13];  dx+=dx_inc;
-      dpn[dx]=pn[z+14];  dx+=dx_inc;      dpn[dx]=pn[z+15];  dx+=dx_inc;
-      z+=16;
-      }
-     z=fulls*16;
-     for(x=0;x<(N)mods;x++)  {  dpn[dx]=pn[z];   dx+=dx_inc;      z++;      }
-     }
-    y_off++;
-    dy+=dy_inc;
-    }
- return RET_YES;
- }
-
-#endif
 
 
 
@@ -68275,9 +68136,6 @@ noscale:
    }
  return RET_YES;
  }
-
-
-
 
 
 
@@ -70964,13 +70822,13 @@ noscale:
    aaParserCopy(&pb,&pa,NO);
    pb.bp[pos]=NULL_CHAR;
    aaSurfaceLabel(handle,&r2,(p1==NULL)?&col_gray[4]:p1,fhandle,(p2==NULL)?&col_gray[23]:p2,1,0,0,1,0,"%s",pb.bp);
-   if(surp->status.is_log_write) {  aaLog(-555,"%s",pb.bp); }
+   if(surp->status.is_log_write) {  aaLog(-555,"44e %s",pb.bp); }
    aaParserSeek(&pa,pos+1);
    if(line_type==aa_STRINGMODE_CRLF) { aaParserSeek(&pa,1); }
    continue;
    }
   aaSurfaceLabel(handle,&r2,(p1==NULL)?&col_gray[4]:p1,fhandle,(p2==NULL)?&col_gray[23]:p2,1,0,0,1,0,"%s",pa.bp);
-  if(surp->status.is_log_write) {  aaLog(-555,"%s",pa.bp); }
+  if(surp->status.is_log_write) {  aaLog(-555,"ddd %s",pa.bp); }
   break;
   }
 // if(surp->status.is_log_write) {  aaLog(-555,"%s",txt); }
@@ -78026,10 +77884,6 @@ redo:
  if(rect==NULL) { aaRectSet(&rr1,0,0,320,240); }
  else           { aaRectCopy(&rr1,rect); }
  aaSizeSet(&s1,rr1.w,rr1.h);
-
- //screencap->image=malloc(s1.w*s1.h*4);
- //if(screencap->image==NULL) { oof; }
-
  if((ret=aaMemoryAllocate((VP)&screencap->image,s1.w*s1.h*4))!=YES) { return ret; }
  screencap->source_dc=GetDC(screencap->source_hwnd);
  if(screencap->source_dc==NULL)
@@ -78800,7 +78654,28 @@ redo:
 
 ///=====================================================
 
-
+/*
+alaw     PCM A-law
+f32be    PCM 32-bit floating-point big-endian
+f32le    PCM 32-bit floating-point little-endian
+f64be    PCM 64-bit floating-point big-endian
+f64le    PCM 64-bit floating-point little-endian
+mulaw    PCM mu-law
+s16be    PCM signed 16-bit big-endian
+s16le    PCM signed 16-bit little-endian
+s24be    PCM signed 24-bit big-endian
+s24le    PCM signed 24-bit little-endian
+s32be    PCM signed 32-bit big-endian
+s32le    PCM signed 32-bit little-endian
+s8       PCM signed 8-bit
+u16be    PCM unsigned 16-bit big-endian
+u16le    PCM unsigned 16-bit little-endian
+u24be    PCM unsigned 24-bit big-endian
+u24le    PCM unsigned 24-bit little-endian
+u32be    PCM unsigned 32-bit big-endian
+u32le    PCM unsigned 32-bit little-endian
+u8       PCM unsigned 8-bit
+*/
 
 
  B aaAudioConverterInit                (_audioconverter*audioconverter,_audiomode*imode,_audiomode*omode)
@@ -79635,7 +79510,7 @@ redo:
  ///if((N)bytes<0||bytes>_128MEG) aaNote(0,"Tried 2 wrt smples=%i byts=%i",samples,bytes);
  if(data==NULL)
   {
-  aaMemoryFill(block,_8K,0);
+  aaMemoryFill(block,_16K,0);
   while(1)
    {
    if(samples==0) break;
@@ -80183,7 +80058,7 @@ redo:
  aaMemoryFill(wavwriter,sizeof(_wavwriter),0);
  aaMagicSet(wavwriter,aaWavWriterNew);
  if((ret=aaAudioModeIsValid(audiomode))!=YES) { return ret; }
- if((ret=aaMemoryUnitAllocate(&wavwriter->mun,_1K))!=YES) { oops; }
+ if((ret=aaMemoryUnitAllocate(&wavwriter->mun,_128K))!=YES) { oops; }
  aaMemoryCopy(&wavwriter->am,sizeof(_audiomode),audiomode);
  off=0;
  aaMemoryCopy(&hdr[off],4,"RIFF");  off+=4;
@@ -80196,9 +80071,12 @@ redo:
  *(HP)&hdr[off]=wavwriter->am.frequency; off+=4;
  *(HP)&hdr[off]=wavwriter->am.frequency*wavwriter->am.channels*(wavwriter->am.bits/8); off+=4;
  *(WP)&hdr[off]=(wavwriter->am.channels*(wavwriter->am.bits/8)); off+=2;
+ //aaDebugf("al=%i",(wavwriter->am.channels*(wavwriter->am.bits/8)));
  *(WP)&hdr[off]=wavwriter->am.bits; off+=2;
+ ///aaDebugf("off data=%i",off);
  aaMemoryCopy(&hdr[off],4,"data");  off+=4;
  *(HP)&hdr[off]=0;                  off+=4;
+ ///aaDebugf("off d=%i mof=%i",off,wavwriter->mun.offset);
  if(wavwriter->mun.offset!=0) oof;
  aaMemoryCopy(&wavwriter->mun.mem[wavwriter->mun.offset],off,hdr);
  wavwriter->mun.offset+=off;
@@ -80236,7 +80114,7 @@ redo:
  left=wavwriter->mun.bytes-wavwriter->mun.used;
  if((bytes+_1K)>left)
   {
-  if((ret=aaMemoryUnitReAllocate(&wavwriter->mun,wavwriter->mun.bytes+bytes+_32K))!=YES) { oops; }
+  if((ret=aaMemoryUnitReAllocate(&wavwriter->mun,wavwriter->mun.bytes+bytes+_128K))!=YES) { oops; }
   }
  aaMemoryCopy(&wavwriter->mun.mem[wavwriter->mun.offset],bytes,data);
  wavwriter->mun.offset+=bytes;
@@ -81706,7 +81584,8 @@ typedef struct _FILE_STANDARD_INFO {
  B dir[_1K];
  B ful[_1K];
  B fex[_1K];
- H fh;
+ //B rnd[_1K];
+ H fh,i;
  B ch;
 
  #ifdef aa_VERSION
@@ -81720,9 +81599,14 @@ typedef struct _FILE_STANDARD_INFO {
  if((ret=aaFileFolderExists(dir))!=YES) { return RET_FAILED; }
  if(aaStringIsNull(ext)==NO) { aaStringCopyf(fex,ext); }
  else                        { aaStringCopyf(fex,""); }
+
+
  while(1)
   {
-  aaStringRandomSet(txt,chars,alpha,0,num,YES);
+  for(i=0;i<chars;i++) {  txt[i]=aa_hexchar[aaMathRand32(0,15)]; }
+  txt[i]=NULL_CHAR;
+ // aaStringRandomSet(txt,chars,alpha,0,num,YES);
+
   aaStringCopyf(ful,"%s",dir);
   aaStringLastCharGet(ful,0,&ch);
   if(ch==BSLASH_CHAR) { aaStringAppendf(ful,"%s.%s",txt,fex); }
@@ -82192,7 +82076,7 @@ typedef struct _FILE_STANDARD_INFO {
  file_op.wFunc=FO_DELETE;
  file_op.pFrom=(CP)str64k.buf;
  file_op.pTo="";
- file_op.fFlags=FOF_NOCONFIRMATION|FOF_NOERRORUI|FOF_SILENT;
+ file_op.fFlags=FOF_NOCONFIRMATION|FOF_NOERRORUI|FOF_SILENT;//|FOF_NORECURSION|FOF_NO_UI;
  file_op.fAnyOperationsAborted=0;
  file_op.hNameMappings=0;
  file_op.lpszProgressTitle="";
@@ -82339,10 +82223,11 @@ typedef struct _FILE_STANDARD_INFO {
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
- if(type>1) { return RET_BADPARM; }
- if(type==0) { mul=10; }
+
+ if(type==0||type==10) { mul=10; }
  else
- if(type==1) { mul=16; }
+ if(type==1||type==16) { mul=16; }
+ else    { return RET_BADPARM; }
 
  if(levels>=6) { return RET_BOUNDS; }
  aaSysPathGet(&sp);
@@ -82385,6 +82270,24 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
+ /*
+ void silently_remove_directory(LPCTSTR dir) // Fully qualified name of the directory being deleted, without trailing backslash
+{
+    SHFILEOPSTRUCT file_op = {
+        NULL,
+        FO_DELETE,
+        dir,
+        "",
+        FOF_NOCONFIRMATION |
+        FOF_NOERRORUI |
+        FOF_SILENT,
+        FA,
+        0,
+        "" };
+    SHFileOperation(&file_op);
+}
+*/
+
 
  B aaFileFolderTreeDelete              (VP foldername,B levels,B type,B delfiles)
  {
@@ -82400,10 +82303,11 @@ typedef struct _FILE_STANDARD_INFO {
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
- if(type>1) { return RET_BADPARM; }
- if(type==0) { mul=10; }
+ if(type==0||type==10) { mul=10; }
  else
- if(type==1) { mul=16; }
+ if(type==1||type==16) { mul=16; }
+ else    { return RET_BADPARM; }
+
 
  if(levels>=6) { return RET_BOUNDS; }
  aaSysPathGet(&sp);
@@ -82436,6 +82340,9 @@ typedef struct _FILE_STANDARD_INFO {
    if(delfiles)
     {
     //aaDebugf("del %s",txt);
+    if((ret=aaFileFolderRemove("%s",txt))!=YES) { oops; }
+    //silently_remove_directory(txt);
+    //aaFileDelete("%s",txt);
     }
    aaStringFindChar(txt,0,&off,'/',YES,(levels-z-1),NO);
    txt[off]=0;
@@ -82474,11 +82381,12 @@ typedef struct _FILE_STANDARD_INFO {
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
- if(type>1) { return RET_BADPARM; }
- if(type==0) { mul=10; }
+ if(type==0||type==10) { mul=10; }
  else
- if(type==1) { mul=16; }
- if(levels>=6) { return RET_BOUNDS; }
+ if(type==1||type==16) { mul=16; }
+ else    { return RET_BADPARM; }
+
+
  aaSysPathGet(&sp);
  if(aaStringIsNull(foldername)==NO)
   {
@@ -85117,7 +85025,7 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  B ret;
  H li,lc,chars;
  B buf[_256K];
- aaVargsf32K(fmt);
+ aaVargsf256K(fmt);
  //B cmp[_32K];
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
@@ -85138,9 +85046,9 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   while(1)
    {
    //aaStringCopyfLen(cmp,&sl,"op:");
-   if(aaStringNICompare(buf,str32k.buf,str32k.len,0)==YES)
+   if(aaStringNICompare(buf,str256k.buf,str256k.len,0)==YES)
     {
-    aaStringDeleteChars(buf,chars,0,str32k.len);
+    aaStringDeleteChars(buf,chars,0,str256k.len);
     //aaStringUnQuote(buf,0,0);
     if(aft)  { aaStringCopy(aft,buf); }
     if(line) { *line=li; }
@@ -85154,19 +85062,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
 
 
 /*-----------------------------------------------------------------------*/
-
-
-
-
-
-
-
-
-
-//http://www.drdobbs.com/architecture-and-design/text-editors-algorithms-and-architecture/184408975?pgno=2
-
-/*-----------------------------------------------------------------------*/
-
 
 
 
@@ -87596,8 +87491,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
 
 
 
-
-
  B aaDigestMac                         (H handle,H keylen,VP key,H bytes,VP data,VP rdig,VP rdigstr)
  {
  B ret;
@@ -87657,8 +87550,8 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   B hmac_buf[64+32]={0};
   aaMemoryFill(hmac_buf,sizeof(hmac_buf),0);
   aaCast(src,BP,data);
-  if(keylen<64)  {   aaMemoryCopy(hmac_buf,keylen,key);   }
-  else   {   oof;   aaDigestReset(handle);   aaDigestWrite(handle,keylen,key,YES,hmac_buf,0);   }
+  if(keylen<=64)  {   aaMemoryCopy(hmac_buf,keylen,key);   }
+  else   { aaDigestReset(handle);     aaDigestWrite(handle,keylen,key,YES,hmac_buf,0);   aaDigestReset(handle);   }
   for(i=0;i<64;i++)   hmac_buf[i]^=HMAC_IPAD_VAL;
   aaDigestReset(handle);
   aaDigestWrite(handle,64,hmac_buf,NO,0,0);
@@ -88165,7 +88058,8 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  if(chacha20->magic!=aaHPP(aaCryptoChaCha20Init)) { return RET_NOTSTARTED; }
  //nonce=chacha20->schedule+12;
  i=10;
- memcpy(output,chacha20->schedule,sizeof(chacha20->schedule));
+ //memcpy(output,chacha20->schedule,sizeof(chacha20->schedule));
+ aaMemoryCopy(output,sizeof(chacha20->schedule),chacha20->schedule);
  while (i--)
   {
   aaChaCha20_QROUND(output,0,4,8,12)
@@ -88397,7 +88291,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
     aaFileStreamStatus(bififile->fsu[i].handle,&bififile->fsu[i].status);
     goto redo;
     }
-
   }
  aaFileStreamStatus(bififile->fsu[i].handle,&bififile->fsu[i].status);
  return RET_YES;
@@ -88607,8 +88500,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  aaMemoryCopy(var.data,bytes,data);
  //aaDebugf("%s about to call bifiwrite off=%I64d len=%i %I64d",var.name,off,sizeof(_bifivar),*(QP)var.data);
  if((ret=aaBifiWrite(bififile,off,sizeof(_bifivar),&var))!=YES) { oops; }
-
-
  return RET_YES;
  }
 
@@ -88868,12 +88759,16 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  if(jsonp->status.is_decoding==YES)
   {
   go=0;
+//    aaDebugf("%s %i %i",__func__,__LINE__,to);
    while(1)
     {
     if((go++)>to) break; //drama was 32
+ //     aaDebugf("%s %i goo=%i",__func__,__LINE__,go);
     if((ret=aa_jsonSystemDecode((VP)&jsonp))!=YES) { oops; break; }
+   // aaDebugf("%s %i",__func__,__LINE__);
     if(jsonp->status.is_decoding==NO)              {       break; }
     }
+
   }
  if(jsonstatus) { aaMemoryCopy(jsonstatus,sizeof(_jsonstatus),&jsonp->status); }
  return RET_YES;
@@ -88972,7 +88867,10 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   if(jsonp->dec_stage==600&&jsonp->status.decode_success==YES&&jsonp->status.decode_failure==NO) { return RET_YES; }
   aaNote(0,"stag=%i,s=%i f=%i",jsonp->dec_stage,jsonp->status.decode_success,jsonp->status.decode_failure);
   }
- if(jsonp->status.mem_bytes==0) { oof; return RET_NOTREADY; }
+ if(jsonp->status.mem_bytes==0)
+  {
+  return RET_NOTREADY;
+  }
  jsonp->status.is_decoding=YES;
  jsonp->status.decode_success=NO;
  jsonp->status.decode_failure=NO;
@@ -89571,7 +89469,7 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  if((ret=aa_ObjectCheck(aa.json_system.object_id,handle,(VP)&jsonp,NULL))!=RET_YES) { return ret; }
  if((ret=aaJsonReset(handle,NO))!=YES) { oops; return ret; }
  if((ret=aaJsonAppendBytes(handle,bytes,data))!=YES) { oops; }
- if((ret=aaJsonDecode(handle))!=RET_YES) { oops; }
+ if((ret=aaJsonDecode(handle))!=RET_YES) { return ret; }
  return RET_YES;
  }
 
@@ -89587,13 +89485,19 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  if((ret=aa_ObjectCheck(aa.json_system.object_id,handle,(VP)&jsonp,NULL))!=RET_YES) { return ret; }
  while(1)
   {
+  //aaDebugf("%s %i",__func__,__LINE__);
   if((ret=aaJsonStatus(handle,jsonstatus))!=YES) { oops; }
+  ///aaDebugf("%s %i",__func__,__LINE__);
   if(jsonstatus->is_decoding)
    {
    if(wait) { continue; }
    return RET_NOTREADY;
    }
-  if(jsonstatus->decode_success!=YES) { oof; }
+  if(jsonstatus->decode_success!=YES)
+   {
+   ///aaNote(0,"decoder yield %i",__LINE__);
+   return RET_FAILED;
+   }
   break;
   }
  return RET_YES;
@@ -90519,7 +90423,35 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  aa_ZIAG(__FUNCTION__);
  #endif
  if(jcursor==NULL) { return RET_MISSINGPARM; }
+
+ #if 0
  aaMemoryFill(jcursor,sizeof(_jcursor),0);
+ #else
+ jcursor->magic=0;
+ aaMemoryFill(&jcursor->jsu,sizeof(_jsonunit),0);
+ jcursor->jsline=0;
+ jcursor->sys_opti=0;
+ jcursor->upd_bits=0;
+ jcursor->depth_bias=0;
+ jcursor->cur_ix=0;
+ jcursor->max_ix=0;
+ jcursor->ix_remains=0;
+ aaMemoryFill(&jcursor->mstack,sizeof(_ministack),0);
+ jcursor->key[0]=0;
+ jcursor->val[0]=0;
+ jcursor->h0=0;
+ jcursor->h1=0;
+ jcursor->pre[0]=0;
+ jcursor->mid[0]=0;
+ jcursor->spc[0]=0;
+ jcursor->short_val[0]=0;
+ jcursor->short_all[0]=0;
+ jcursor->all[0]=0;
+ jcursor->flat_out[0]=0;
+ jcursor->llsb=0;
+ #endif
+
+
  jcursor->magic=aaHPP(aaJcursorNew);
  if((ret=aaMiniStackNew(&jcursor->mstack))!=YES) { oops; }
  return RET_YES;
@@ -91090,9 +91022,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
 
 */
 
-
-
-/*-----------------------------------------------------------------------*/
 
 
 
@@ -91971,7 +91900,11 @@ whatever is possible
  websocketserver->max_calls=maxcalls;
  if(port==0) { port=80; }
  aaNetAdrSet(&websocketserver->adr,ip,port);
- if((ret=aaNetTcpPortCreate(&websocketserver->port.handle,websocketserver->adr.ip,websocketserver->adr.port,sizeof(_websocketservercalldata)))!=YES)  { oops;  }
+ if((ret=aaNetTcpPortCreate(&websocketserver->port.handle,websocketserver->adr.ip,websocketserver->adr.port,sizeof(_websocketservercalldata)))!=YES)
+  {
+  aaMemoryFill(websocketserver,sizeof(_websocketserver),0);
+  return ret;
+  }
  aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
  return RET_YES;
  }
@@ -91990,8 +91923,12 @@ whatever is possible
   while(1)
    {
    aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
-   if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0))!=YES) { break; }
-   if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; break; }
+   if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,&websocketserver->port_iter0))!=YES) { break; }
+   if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata))
+    {
+    aaNote(0,"z aanetwebsocketserverdelete eb=%i so=%i",websocketserver->call.status.extra_bytes,sizeof(_websocketservercalldata));
+    break;
+    }
    scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
    if((ret=aaIoqueDelete(&scd->ioque))!=YES) { oops; }
    aaNetTcpCallDestroy(websocketserver->call.handle);
@@ -92028,14 +91965,17 @@ whatever is possible
  _websockethdr wockpkt;
  Q ms;
 
- if(websocketserver==NULL)                    { return RET_MISSINGPARM; }
+ if(websocketserver==NULL)                                  { return RET_MISSINGPARM;    }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+
+ websocketserver->scd=NULL;
+
  ita=1;
  while(ita--)
   {
   scd=NULL;
   aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
-  if(aaNetTcpPortCallNext(websocketserver->port.handle,&cu.handle,&cu.status,0)!=YES) { continue; }
+  if(aaNetTcpPortCallNext(websocketserver->port.handle,&cu.handle,&cu.status,&websocketserver->port_iter0)!=YES) { continue; }
   if(cu.status.is_connected!=YES)
    {
    if(websocketserver->max_calls>0&&websocketserver->port.status.calls_inuse>=websocketserver->max_calls)
@@ -92044,7 +91984,6 @@ whatever is possible
     continue;
     }
    if((ret=aaNetTcpCallAnswer(cu.handle))!=YES) { oops; }
-   //aaDebugf("answ");
    aaNetTcpCallInactivityResetOn(cu.handle,YES,YES);
    aaNetTcpCallStatus(cu.handle,&cu.status);
    if(cu.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; }
@@ -92054,23 +91993,18 @@ whatever is possible
    websocketserver->tot_calls++;
    scd=(_websocketservercalldata*)cu.status.extra_data;
    if((ret=aaIoqueNew(&scd->ioque))!=YES) { oops; }
-   //websocketserver->scd=scd;
-   //-------
    continue;
    }
 
   if(cu.status.extra_bytes!=sizeof(_websocketservercalldata)) { aaDebugf("eb=%i",cu.status.extra_bytes); oof; }
-  scd=(_websocketservercalldata*)cu.status.extra_data;
-  //websocketserver->scd=scd;
 
-//  aaDebugf("scd->is_close=%i",scd->is_close);
+  scd=(_websocketservercalldata*)cu.status.extra_data;
   switch(scd->is_close)
    {
    case 1:
-//   aaDebugf("line =%i dockios",__LINE__);
    if(scd->is_ws&&scd->wock.is_open)
     {
-  //  aaDebugf("calling websocketclose");
+    ///aaDebugf("closing line=%i",__LINE__);
     if((ret=aaNetWebsocketClose(&scd->wock))!=YES)  {   aaDebugf(">>>> %s %i %s",__FILE__,__LINE__,arets);     }
     }
    aaNetTcpCallClose(cu.handle);
@@ -92081,23 +92015,13 @@ whatever is possible
 
 
    case 2:
-   if(scd->is_ready&&scd->is_closing!=YES)
-    {
-    if(aaMathRand32(0,350)==0)
-     {
-     aaDebugf("waiting closing %s,%s,%s,eb=%i isin=%i iscon=%i isclosin=%i isclose=%i",
-     cu.status.src_dot,cu.status.local_dot,cu.status.remote_dot,
-     cu.status.extra_bytes, cu.status.is_incoming,cu.status.is_connected,
-     scd->is_closing,scd->is_close   );
-     }
-    break;
-    }
+   if(scd->is_ready&&scd->is_closing!=1)     {    break;    }
    if((ret=aaIoqueDelete(&scd->ioque))!=YES) { oops; }
-   ///aaDebugf("des");
    aaNetTcpCallDestroy(cu.handle);
-   //websocketserver->call.handle=0;
-   //websocketserver->scd=NULL;
-   //websocketserver->cur_calls--;
+    //!!
+    websocketserver->call.handle=0;
+    websocketserver->scd=NULL;
+    websocketserver->cur_calls--;
    ita=0;
    scd=NULL;
    break;
@@ -92107,10 +92031,7 @@ whatever is possible
   if(scd==NULL)   {   break;   }
   if(cu.status.is_closed)
    {
-   //aaDebugf("line =%i dockios",__LINE__);
-   //if(scd->is_close==0&&scd->stage<10) { scd->is_close=1;   continue;    }
    if(scd->is_close==0&&scd->is_ready!=YES) { scd->is_close=1;   continue;    }
-   //aaDebugf("aclosems=%i",cu.status.closed_ms);
    }
 
 
@@ -92119,7 +92040,6 @@ whatever is possible
   while(1)
    {
    if((go++)>=to) { break; }
-   //scd=(_websocketservercalldata*)websocketserver->scd;
    if(scd==NULL) oof;
    switch(scd->stage)
     {
@@ -92130,32 +92050,25 @@ whatever is possible
     scd->wock.ping_rcve_last_ms=0;
     scd->wock.pong_rcve_last_ms=0;
     aaNetTcpCallStatus(cu.handle,&cu.status);
-    //aaDebugf("init");
     scd->is_ws=1;
     scd->stage=10;
     break;
 
     case 3:
-    if(scd->is_close==0)
-     {
-     aaDebugf("closeline %u",__LINE__);
-     scd->is_close=1;
-     }
+    if(scd->is_close==0)     {     scd->is_close=1;     }
     scd->stage=5;
     break;
 
     case 5:
-    aaDebugf("closeline %u",__LINE__);
     scd->is_close=2;
     break;
 
     case 10:
-    if(cu.status.is_closed)  {   aaDebugf("close %i",__LINE__);   scd->stage=3;     break;     }
+    if(cu.status.is_closed)        { aaDebugf("close %i",__LINE__);   scd->stage=3;     break;     }
     if((ret=aaNetWebsocketYield(&scd->wock))!=YES) { oops;  }
-    if(scd->wock.is_failure)    {    aaDebugf("line=%i failure a",__LINE__,scd->wock.fail_reason); scd->stage=3;  break;   }
-    if(cu.status.ms>=aaSecs(20))   {  aaDebugf("stage10 timeout");   scd->stage=3;    break;     }
-    if(scd->wock.is_open!=YES)                     { break; }
-    //aaDebugf("isready");
+    if(scd->wock.is_failure)       { aaDebugf("line=%i failure a",__LINE__,scd->wock.fail_reason); scd->stage=3;  break;   }
+    if(cu.status.ms>=aaSecs(20))   { aaDebugf("stage10 timeout");   scd->stage=3;    break;     }
+    if(scd->wock.is_open!=YES)     { break; }
     scd->is_ready=YES;
     scd->stage=1500;
     break;
@@ -92167,7 +92080,6 @@ whatever is possible
     aaNetTcpCallStatus(cu.handle,&cu.status);
     if((ret=aaNetWebsocketYield(&scd->wock))!=YES) {  oops; }
     if(scd->wock.is_failure) { aaNote(0,"failure ec %i",scd->wock.fail_reason); }
-    //==========
     ms=aaMsRunning();
     if((ms-scd->wock.ping_xmit_last_ms)>=20000)
      {
@@ -92176,7 +92088,6 @@ whatever is possible
      aaNetWebsocketWrite(&scd->wock,WEBSOCKET_OPCODE_PING,YES,2,etc);
      scd->wock.ping_xmit_last_ms=ms;
      }
-    //==========
     if(aaIoquePeek(&scd->ioque,IOQUE_XMIT,0,sizeof(wockpkt),&wockpkt)==YES)
      {
      if(aaIoqueRead(&scd->ioque,IOQUE_XMIT,sizeof(wockpkt),&wockpkt)!=YES) { oof; }
@@ -92195,30 +92106,16 @@ whatever is possible
      }
     if(scd->is_close==0)
      {
-     if(cu.status.ms>(20000/4)&&cu.status.rcve_inactivity>(20000*6))
-      {
-      aaDebugf("doc1");
-      scd->is_close=1;
-      }
-     if(((cu.status.rcve_bytes==0&&cu.status.xmit_bytes==0)||(cu.status.closed_ms>=aaSecs(3)))&&(cu.status.is_closed))
-      {
-      aaDebugf("doc2");
-      scd->is_close=1;
-      }
+     if(cu.status.ms>(20000/4)&&cu.status.rcve_inactivity>(20000*6))  {    scd->is_close=1;      }
+     if(((cu.status.rcve_bytes==0&&cu.status.xmit_bytes==0)||(cu.status.closed_ms>=aaSecs(3)))&&(cu.status.is_closed)) {  scd->is_close=1;      }
      }
-    if(ret!=RET_YES)
-     {
-     break;
-     }
+    if(ret!=RET_YES)  {   break;     }
     if(oc==WEBSOCKET_OPCODE_CLOSE&&ff==1)
      {
      if(bytes==2)         { hv=*(WP)&the_data[0];  hv=aaNumSwapWord(hv);    }
+     ///aaDebugf("closing line=%i",__LINE__);
      aaNetWebsocketClose(&scd->wock);
-     if(scd->is_close==0)
-      {
-     /// aaDebugf("closeline %u",__LINE__);
-      scd->is_close=1;
-      }
+     if(scd->is_close==0)    {      scd->is_close=1;      }
      break;
      }
 
@@ -92243,18 +92140,23 @@ whatever is possible
      wockpkt.bytes=bytes;
      if((ret=aaIoqueWrite(&scd->ioque,IOQUE_RCVE,sizeof(wockpkt),&wockpkt))!=YES) { oops; }
      if(bytes>0) { if((ret=aaIoqueWrite(&scd->ioque,IOQUE_RCVE,bytes,the_data))!=YES) { oops; } }
-     //aaDebugf("wrote rcve %i",bytes);
      break;
      }
-    if(oc==0)
-     {
-     break;
-     }
-    aaNote(0,"a binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
+    if(oc==0)     {     break;     }
+    if(scd->is_close==0) { scd->is_close=1;      }
+    //user_cntr++;
+    binerr_user_cntr++;
+    aaDebugf("a binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
+    ///aaNote(0,"a binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
     break;
     }
    }
   }
+
+ websocketserver->scd=scd;
+ if(scd==NULL) { return RET_NOTREADY; }
+  websocketserver->call.handle=cu.handle;//scd->wock.tcp_handle;
+  aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
  return RET_YES;
  }
 
@@ -92262,7 +92164,7 @@ whatever is possible
 
 
 
-
+/*
  B aaNetWebsocketServerDuplicate       (_websocketserver*websocketserver,_websocketserver*swebsocketserver)
  {
  if(swebsocketserver==NULL) { return RET_MISSINGPARM; }
@@ -92280,9 +92182,28 @@ whatever is possible
  return RET_YES;
  }
 
+*/
 
 
 
+
+
+ B aaNetWebsocketServerPktPeek         (_websocketserver*websocketserver,_websockethdr*websockethdr,VP data)
+ {
+ B ret;
+ BP bp;
+ if(websocketserver==NULL) { return RET_MISSINGPARM; }
+ if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+ if(websockethdr==NULL) { return RET_MISSINGPARM; }
+ if(data==NULL)         { return RET_MISSINGPARM; }
+ if(websocketserver->scd==NULL) { return RET_NOTREADY; }
+ if((ret=aaIoquePeek(&websocketserver->scd->ioque,IOQUE_RCVE,0,sizeof(_websockethdr),websockethdr))!=YES) { return ret; }
+ bp=(BP)data;
+ if(websockethdr->bytes>0) { if((ret=aaIoquePeek(&websocketserver->scd->ioque,IOQUE_RCVE,0+sizeof(_websockethdr),websockethdr->bytes,bp))!=YES) { oops; }  }
+ bp[websockethdr->bytes]=0;
+ //if((ret=aaIoqueDiscard(&websocketserver->scd->ioque,IOQUE_RCVE,sizeof(_websockethdr)+websockethdr->bytes))!=YES) { oops; }
+ return RET_YES;
+ }
 
 
 
@@ -92318,17 +92239,11 @@ whatever is possible
  wockpkt.oc=oc;
  wockpkt.ff=ff;
  wockpkt.bytes=bytes;
- //aaDebugf("%i %i,%i,%i",__LINE__,wockpkt.oc,wockpkt.ff,wockpkt.bytes);
- ///aaDebugf("cd=%i isws=%i bytes=%i",websocketserver->scd->ustage,websocketserver->scd->is_ws,bytes);
  if((ret=aaIoqueWrite(&websocketserver->scd->ioque,IOQUE_XMIT,sizeof(_websockethdr),&wockpkt))!=YES)  { oops; }
- //aaDebugf("%i",__LINE__);
  if(wockpkt.bytes>0)
   {
-  //aaDebugf("%i",__LINE__);
   if((ret=aaIoqueWrite(&websocketserver->scd->ioque,IOQUE_XMIT,wockpkt.bytes,data))!=YES) { oops; }
-  //aaDebugf("%i",__LINE__);
   }
-  //aaDebugf("%i",__LINE__);
  return RET_YES;
  }
 
@@ -92342,6 +92257,36 @@ whatever is possible
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
  return(aaNetWebsocketServerPktWrite(websocketserver,oc,ff,0,str512k.buf));
  }
+
+
+
+
+
+ B aaNetWebsocketServerCallSet         (_websocketserver*websocketserver,H callhandle)
+ {
+ B ret;
+ _tcpcallunit call;
+ _websocketservercalldata*scd;
+ if(websocketserver==NULL) { return RET_MISSINGPARM; }
+ if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+ //websocketserver->call.handle=0;
+ //websocketserver->scd=NULL;
+ call.handle=callhandle;
+ ret=aaNetTcpCallStatus(call.handle,&call.status);
+ if(ret!=RET_YES) { return ret; }
+ if(call.status.is_connected!=YES) { return RET_NOTREADY; }
+ if(call.status.extra_bytes!=sizeof(_websocketservercalldata)) { return RET_NOTREADY; }
+ if(call.status.is_incoming!=YES) { return RET_NOTREADY; }
+ scd=(_websocketservercalldata*)call.status.extra_data;
+ //if(scd->is_ready!=YES) { return RET_NOTREADY; }
+ websocketserver->scd=scd;
+ websocketserver->call.handle=call.handle;//scd->wock.tcp_handle;
+ aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
+ return RET_YES;
+ }
+
+
+
 
 
 
@@ -92363,7 +92308,7 @@ whatever is possible
   while(1)
    {
    aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
-   if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0))!=YES) { break; }
+   if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,&websocketserver->port_iter1       ))!=YES) { break; }
    if(websocketserver->call.status.is_connected!=YES)
     {
     if(0)
@@ -92412,8 +92357,9 @@ whatever is possible
  //if(scd->is_close==0) { scd->is_close=1; }
  if(websocketserver->scd->is_closing==0) { websocketserver->scd->is_closing=1; }
  if(websocketserver->scd->is_close==0) { websocketserver->scd->is_close=1; }
+ //aaNetWebsocketClose(&scd->wock);
 
-
+ ///aaDebugf("closing line=%i",__LINE__);
  return RET_YES;
  }
 
@@ -92424,20 +92370,22 @@ whatever is possible
 /*-----------------------------------------------------------------------*/
 
 
- B aaNetWebsocketClientNew             (_websocketclient*websocketclient,H sip,W sport,VP host,H ip,W port)
+ B aaNetWebsocketClientNew             (_websocketclient*websocketclient,H sip,W sport,VP host,H ip,W port,B istls,VP fmt,...)
  {
  B ret;
  _websocketclientcalldata*cd;
+ aaVargsf32K(fmt);
 
  if(websocketclient==NULL) { return RET_MISSINGPARM; }
  aaMemoryFill(websocketclient,sizeof(_websocketclient),0);
  websocketclient->magic=aaHPP(aaNetWebsocketClientNew);
- if((ret=aaNetTcpCallCreate(&websocketclient->call.handle,sip,sport,host,ip,port,0))!=YES) { oops; }
+ if((ret=aaNetTcpCallCreate(&websocketclient->call.handle,sip,sport,host,ip,port,istls))!=YES) { oops; }
  if((ret=aaNetTcpCallExtraDataSet(websocketclient->call.handle,sizeof(_websocketclientcalldata)))!=YES) { oops; }
  aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status);
  cd=(_websocketclientcalldata*)websocketclient->call.status.extra_data;
  if(cd==NULL) oof;
  if((ret=aaIoqueNew(&cd->ioque))!=YES) { oops; }
+ aaStringCopyf(cd->url,"%s",str32k.buf);
  websocketclient->stage=10;
  websocketclient->cd=cd;
  return RET_YES;
@@ -92500,12 +92448,15 @@ whatever is possible
    case 10:
    aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status);
    if(websocketclient->call.status.is_connected!=YES) { break; }
+   if(websocketclient->call.status.is_good!=YES) { break; }
    if(0) { aaDebugf("websocketclient connected, %i ",websocketclient->call.status.extra_bytes); }
    websocketclient->stage=20;
    break;
 
    case 20:
-   if((ret=aaNetWebsocketInit(&cd->wock,websocketclient->call.handle,"ws://192.168.1.107:4456"))!=YES) { oops; }
+   //if((ret=aaNetWebsocketInit(&cd->wock,websocketclient->call.handle,"ws://192.168.1.107:4456"))!=YES) { oops; }
+   //if((ret=aaNetWebsocketInit(&cd->wock,websocketclient->call.handle,"wss://ws.postman-echo.com/raw"))!=YES) { oops; }
+   if((ret=aaNetWebsocketInit(&cd->wock,websocketclient->call.handle,"%s",cd->url))!=YES) { oops; }
    cd->wock.ping_xmit_last_ms=0;
    cd->wock.pong_xmit_last_ms=0;
    cd->wock.ping_rcve_last_ms=0;
@@ -92779,7 +92730,6 @@ whatever is possible
    //aaNetIpFromString("192.168.1.109",&ip);
    //aaNote(0,"ip=%u",ip);
    //B aaNetTcpCallCreate                  (HP handle,H sip,W sport,VP host,H ip,W port,B tls);
-
    //if(aaNetTcpCallCreate(&rednet->call.handle,0,0,0,ip,6379,0)!=YES) oof;
    if(aaNetTcpCallCreate(&rednet->call.handle,rednet->sip,rednet->sport,rednet->host,rednet->ip,rednet->port,0)!=YES) oof;
    aaNetTcpCallStatus(rednet->call.handle,&rednet->call.status);
@@ -92790,6 +92740,7 @@ whatever is possible
    case 150:
    aaNetTcpCallStatus(rednet->call.handle,&rednet->call.status);
    if(rednet->call.status.is_connected!=YES) { break; }
+   if(rednet->call.status.is_good!=YES) { break; }
    //app.rednety_ready_count++;
    if(0) { aaDebugf("rednety %i ready",rednet->self_index); }
    rednet->is_ready=YES;
@@ -93658,37 +93609,6 @@ whatever is possible
  return RET_NOTFOUND;
  }
 
- /*
-static size_t mbedtls_clz( const mbedtls_mpi_uint x )
-{
-    u32 j;
-    u32 mask = (u32) 1 << (32 - 1);
-
-    for( j = 0; j < biL; j++ )
-    {
-        if( x & mask ) break;
-
-        mask >>= 1;
-    }
-
-    return j;
-
-size_t mbedtls_mpi_bitlen( const mbedtls_mpi *X )
-{
-    u32 i, j;
-
-    if( X->size == 0 )        return( 0 );
-
-    for( i = X->size - 1; i > 0; i-- )
-     {
-        if( X->data[i] != 0 )            break;
-        }
-
-    j = 32 - mbedtls_clz( X->data[i] );
-
-    return( ( i * 32 ) + j );
-}
-*/
 
 
 
@@ -96342,6 +96262,7 @@ size_t mbedtls_mpi_bitlen( const mbedtls_mpi *X )
    aaNetTcpCallStatus(mysql->call.handle,&mysql->call.status);
    flag=0;
    if(mysql->call.status.is_connected!=YES) { ita=0; break; }
+   if(mysql->call.status.is_good!=YES) { ita=0; break; }
    mysql->stage=40;
    break;
 
@@ -97617,80 +97538,6 @@ redo:
 
 /**----------------------------------------------------------------------*/
 
-/*
- B aaVmAaHeaderFunctions               (V)
- {
- B ret;
- H i;
- _textreader tr;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- B aaTextReaderProcx                   (_textreader*textreader,H linenum)
- {
- B ascii;
- _parser pa;
- B txt[_4K];
- H chars;
-
- if((ret=aaTextReaderLineGet(textreader,linenum,&chars,txt))!=YES) { oops; return ret; }
- aaStringFirstCharNonVisibleRemove(txt,chars);
- aaStringLastCharNonVisibleRemove(txt,chars);
- aaStringLen(txt,&chars);
- if(chars==0) { return RET_NO; }
- aaStringLastCharGet(txt,chars,&ascii);
- if(ascii!=';') { return RET_NO; }
- aaParserInit(&pa,txt,chars);
- if(aaCharIsAlpha(pa.bp[0])!=YES) { return RET_NO; }
- aaParserSeek(&pa,1);
- while(1)
-  {
-  if(pa.is_end) { break; }
-  if(aaCharIsAlpha(pa.ch)) { aaParserSeek(&pa,1); continue; }
-  if(aaCharIsVisible(pa.ch)==YES) { return RET_NO; } //aaParserSeek(&pa,1); continue; }
-  aaParserSeek(&pa,1);
-  while(1)
-   {
-   if(pa.is_end) { break; }
-   if(aaCharIsAlphaNum(pa.ch)) { aaParserSeek(&pa,1); continue; }
-   if(aaCharIsVisible(pa.ch)==YES) { return RET_NO; } //aaParserSeek(&pa,1); continue; }
-   aaParserSeekToVisibleChar(&pa,YES,YES);
-   if(pa.ch!='(') { return RET_NO; }
-   aaLog(-555,"%s",txt);
-   aaParserOffsetSet(&pa,0);
-   aaParserSeekToVisibleChar(&pa,NO,1);
-   aaParserSeekToVisibleChar(&pa,YES,1);
-   aaParserStackPush(&pa);
-   aaParserSeekToVisibleChar(&pa,NO,1);
-   aaParserStackString(&pa,&chars,F32,txt,YES);
-   while(1)
-    {
-    if(aaStringICompare(txt,"aaSorterProc",0)==YES) { break; }
-    if(aaStringICompare(txt,"aaMySqlProc",0)==YES) { break; }
-    if(aaStringICompare(txt,"aaTextLoaderProc",0)==YES) { break; }
-    //aaLog(-555," aaVmProcAdd(vm,0,\"%s\",&%s);",txt,txt);
-    break;
-    }
-   break;
-   }
-  break;
-  }
- return RET_NO;
- }
- if((ret=aaTextReaderOpen(&tr,"aa.h",0,F32))!=YES) { oops; return ret; }
- for(i=0;i<tr.line_count;i++)
-  {
-  aaTextReaderProcx(&tr,i);
-  }
- aaTextReaderDelete(&tr);
- return RET_YES;
- }
-
-*/
-
-/*-----------------------------------------------------------------------*/
-
 
  B aaSkeleton                          (VP name)
  {
@@ -97980,7 +97827,7 @@ redo:
    {
    if(hitcounter->line[i].hits==0) { continue; }
    if(i!=first) { continue; }
-   aaLog(-555,"%c line %-6i clk=%-9I64d  %-50s %I64d",aaBoolChars(i==first,'*',' '),i,hitcounter->line[i].first_clock,hitcounter->line[i].func_name,hitcounter->line[i].hits);
+   aaLog(-555,"yt %c line %-6i clk=%-9I64d  %-50s %I64d",aaBoolChars(i==first,'*',' '),i,hitcounter->line[i].first_clock,hitcounter->line[i].func_name,hitcounter->line[i].hits);
    hitcounter->line[i].hits=0;
    hitcounter->max_line--;
    done=1;
@@ -97992,19 +97839,13 @@ redo:
  }
 
 
-
-
-
-// dude
-
-
 /*-----------------------------------------------------------------------*/
 
  V aaDummyFunction2                    (){} // this function is the first function offset, useful for aaFuncInfoGet
 
 /*-----------------------------------------------------------------------*/
 
- #if aa_DIAGNOSE == YES
+ #if aa_DIAGNOSE==YES
  #if __LINE__>aa_SHOW_DIAG_LINES
  #error "ALLOCATE MORE LINES TO DIAGNOSTICS"
  #endif
