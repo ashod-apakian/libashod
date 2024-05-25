@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2023, Ashot Apakian ver 278
+// 2008-2024, Ashot Apakian ver 303
 /*-----------------------------------------------------------------------*/
 /******************************************************
  codeblocks: build options
@@ -17,9 +17,19 @@
  Other Compiler Options
   -fpack-struct
 
+ Other Compiler Options
+  -ffast-math
+  -mfpmath=sse
+  -msse2
+
+ Other Linker Options
+  -Wl,--stack,4194304
+
  Link Libraries
-  libwldap32.a , libgdi32.a   , libkernel32.a , libnetapi32.a , libuser32.a
-  libvfw32.a   , libwinmm32.a , libws2_32.a   , libversion.a  , libsetupapi.a
+  libwldap32.a , libgdi32.a    , libkernel32.a , libnetapi32.a , libuser32.a
+  libvfw32.a   , libsecure32.a , libwinmm32.a  , libws2_32.a   , libversion.a  , libsetupapi.a
+
+
 ******************************************************/
  #pragma once #ifndef INC_AA
  #define INC_AA
@@ -108,6 +118,13 @@
  #include <errno.h>
  #include <stdint.h>
  #include <fcntl.h>
+ #include <security.h>
+ #include <schannel.h>
+ #include <shlwapi.h>
+ #include <sspi.h>
+ #include <Ws2tcpip.h>
+ #include <mswsock.h>
+ #include <malloc.h>
  #endif
 
  #ifndef NULL_POINTR
@@ -126,7 +143,7 @@
 // #pragma pack(1)
 /*-----------------------------------------------------------------------*/
 
- #if defined(_MSC_VER) || (__BORLANDC__ >= 0x0551) || defined(__GNUC__)
+ #if defined(_MSC_VER)||(__BORLANDC__>=0x0551)||defined(__GNUC__)
  #define L64                           __int64
  #define H64                           unsigned __int64
  #else
@@ -3260,7 +3277,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  W is_inprogress:1;
  W is_incoming:1;
  W is_connected:1;
- W is_ready:1;
+ W is_readyz:1;
  W is_failed:1;
  W is_notfound:1;
  W is_close_protected:1;
@@ -3272,6 +3289,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  W is_xmit_paused:1;
  W is_nodelay:1;
  W is_tls:1;
+ W is_good:1;
  W is_keepalive;
  B host[65];
  _netadr src_adr;
@@ -5373,6 +5391,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaFileFolderDelete                  (VP fmt,...);
  B aaFileFolderRemove                  (VP fmt,...);
  B aaFileFolderExists                  (VP fmt,...);
+ //B aaFileFolderPurge                   (VP fmt,...);
  B aaFileFolderWorkingSet              (VP fmt,...);
  B aaFileFolderWorkingGet              (VP foldername);
  B aaFileFolderDllSet                  (VP fmt,...);
@@ -6896,8 +6915,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B is_ws;
  B is_ready;
  B is_close;
-// B is_closing;
-// B do_close;
+ B url[_1K];
  _websocket wock;
  _ioque ioque;
  B user_data[256];
@@ -6924,6 +6942,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  structure
  {
  H ustage;
+ Q ums;
  H stage;
  B is_ws;
  B is_ready;
@@ -6932,7 +6951,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  _websocket wock;
  _ioque ioque;
  B sys_flag;
- B user_data[256];
+ B user_data[512];
  }
  _websocketservercalldata;
 
@@ -6945,6 +6964,8 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  H cur_calls;
  Q tot_calls;
  _netadr adr;
+ H port_iter0;
+ H port_iter1;
  _tcpportunit port;
  _tcpcallunit call;
  _websocketservercalldata*scd;
@@ -6955,7 +6976,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 /*-----------------------------------------------------------------------*/
 
 
- B aaNetWebsocketClientNew             (_websocketclient*websocketclient,H sip,W sport,VP host,H ip,W port);
+ B aaNetWebsocketClientNew             (_websocketclient*websocketclient,H sip,W sport,VP host,H ip,W port,B istls,VP fmt,...);
  B aaNetWebsocketClientDelete          (_websocketclient*websocketclient);
  B aaNetWebsocketClientYield           (_websocketclient*websocketclient);
  B aaNetWebsocketClientClose           (_websocketclient*websocketclient);
@@ -6966,9 +6987,10 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaNetWebsocketServerNew             (_websocketserver*websocketserver,H ip,W port,H maxcalls);
  B aaNetWebsocketServerDelete          (_websocketserver*websocketserver);
  B aaNetWebsocketServerYield           (_websocketserver*websocketserver);
- B aaNetWebsocketServerDuplicate       (_websocketserver*websocketserver,_websocketserver*swebsocketserver);
- B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver);//,HP callhandle,_tcpcallstatus*callstatus);
+ B aaNetWebsocketServerCallSet         (_websocketserver*websocketserver,H callhandle);
+ B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver);
  B aaNetWebsocketServerCallClose       (_websocketserver*websocketserver);
+ B aaNetWebsocketServerPktPeek         (_websocketserver*websocketserver,_websockethdr*websockethdr,VP data);
  B aaNetWebsocketServerPktRead         (_websocketserver*websocketserver,_websockethdr*websockethdr,VP data);
  B aaNetWebsocketServerPktWrite        (_websocketserver*websocketserver,B oc,B ff,H bytes,VP data);
  B aaNetWebsocketServerPktWritef       (_websocketserver*websocketserver,B oc,B ff,VP fmt,...);
