@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2024, Ashot Apakian ver 303
+// 2008-2024, Ashot Apakian ver 306
 /*-----------------------------------------------------------------------*/
 /******************************************************
  codeblocks: build options
@@ -421,6 +421,7 @@
  #define _6K                           6144
  #define _8K                           8192
  #define _10K                          10240
+ #define _12K                          12288
  #define _16K                          16384
  #define _20K                          20480
  #define _24K                          24576
@@ -3277,7 +3278,8 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  W is_inprogress:1;
  W is_incoming:1;
  W is_connected:1;
- W is_readyz:1;
+ W is_ready:1;
+ W is_readyzzz:1;
  W is_failed:1;
  W is_notfound:1;
  W is_close_protected:1;
@@ -3289,7 +3291,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  W is_xmit_paused:1;
  W is_nodelay:1;
  W is_tls:1;
- W is_good:1;
+ //W is_good:1;
  W is_keepalive;
  B host[65];
  _netadr src_adr;
