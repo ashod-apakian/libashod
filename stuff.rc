@@ -2,9 +2,12 @@
  #include <windows.h>
 /*-----------------------------------------------------------------------*/
 
- 1000 ICON                             "favicon.ico"
- 1001 ICON                             "3004a.ico"
- 1002 ICON                             "3004b.ico"
+ 1000 ICON                             "c:/www/xdosh/server/favicon2.ico"
+ 1001 ICON                             "c:/www/xdosh/server/x0.ico"
+ 1002 ICON                             "c:/www/xdosh/server/x1.ico"
+ 1003 ICON                             "c:/www/xdosh/server/y0.ico"
+ 1004 ICON                             "c:/www/xdosh/server/favboon.ico"
+
 
  VS_VERSION_INFO                       VERSIONINFO
  FILEVERSION                           0,0,0,1
@@ -20,7 +23,7 @@
  BEGIN
  BLOCK "000004b0"
  BEGIN
- VALUE "ProductName",                  "MeBeam Server"
+ VALUE "ProductName",                  "libAshod resources"
  VALUE "ProductVersion",               "0,0,0,1"
  VALUE "FileDescription",              ""
  VALUE "FileVersion",                  "0,0,0,1"
