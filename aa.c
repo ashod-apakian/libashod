@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2024, Ashot Apakian ver 303
+// 2008-2024, Ashot Apakian ver 3064
 /*-----------------------------------------------------------------------*/
  #include "aa.h"
 
@@ -20805,7 +20805,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  calp->inactive_xmit_ms_root=calp->ms_root;
  aa.net_system.net_status.current_outgoing_tcp_call_count++;
  aa.net_system.net_status.total_outgoing_tcp_call_count++;
- aaNetTcpCallSlicerLengthSet(*handle,_8K,_8K);
+ aaNetTcpCallSlicerLengthSet(*handle,_12K,_12K);
  aaNetTcpCallBufferLengthSet(*handle,_32K,_32K);
  calp->status.user_data=calp->user_data;
  calp->status.user_bytes=sizeof(calp->user_data);
@@ -20891,7 +20891,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
   {
   aa_NetTlsProcess(mem);
   }
- if(calp->status.is_good==NO) { return RET_YES; }
+ if(calp->status.is_ready==NO) { return RET_YES; }
 
  if(calp->status.is_closed_by_local==YES)
   {
@@ -21599,8 +21599,9 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
 		{
 		 error = WSAGetLastError();
 		// Error sending data to socket, or server disconnected.
-		if (error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)  { aaNote(0,"tlssend err=%i",error); ctx->state = TLS_STATE_UNKNOWN_ERROR; return -1; }
-		aaNote(0,"tlssend err=%i",error);
+		if (error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)  { aaNote(0,"a tlssend err=%i",error); ctx->state = TLS_STATE_UNKNOWN_ERROR; return -1; }
+		appLog(0,F32,"b tlssend err=%i",error);
+		continue;
 		}
 		totsent+=use;
 		sent += d;
@@ -21704,7 +21705,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     if(sec==SEC_E_OK)
      {
      QueryContextAttributes(&ctx->context, SECPKG_ATTR_STREAM_SIZES, &ctx->sizes);
-     calp->status.is_good=YES;
+     calp->status.is_ready=YES;
      //appLog(0,F32,"is good");
      ctx->state=TLS_STATE_CONNECTED;
      ctx->phaze=300;
@@ -21796,8 +21797,8 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
 
     if(sec == SEC_E_OK)
      {
-     ctx->decrypted = (BP)buffers[1].pvBuffer;
-     ctx->available = buffers[1].cbBuffer;
+     ctx->decrypted=(BP)buffers[1].pvBuffer;
+     ctx->available=buffers[1].cbBuffer;
      ctx->used = ctx->received - (buffers[3].BufferType == SECBUFFER_EXTRA ? buffers[3].cbBuffer : 0);
      //appLog(0,F32,"used=%i",ctx->used);
      }
@@ -22001,8 +22002,8 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     bp-=sizeof(_aa_objectinstanceheader);
     aaCast(oih,_aa_objectinstanceheader*,bp);
     calp->status.session=oih->sesh;
-    calp->status.rcve_slicer_length=_4K;
-    calp->status.xmit_slicer_length=_4K;
+    calp->status.rcve_slicer_length=_12K;
+    calp->status.xmit_slicer_length=_12K;
     calp->status.number=aa.net_system.net_status.total_tcp_call_count;
     aaStringCopyf(calp->status.hancock,"%s",aa_common_name[calp->status.is_incoming][calp->status.number%26]);
     if((calp->status.number/26)>0) aaStringAppendf(calp->status.hancock,"%u",(calp->status.number/26));
@@ -22049,7 +22050,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
     ctx->magic=0;
     if(calp->status.is_tls)    {     aa_NetTlsInit((PP)&calp);     }
-    else                       {     calp->status.is_good=YES;     }
+    else                       {     calp->status.is_ready=YES;     }
     if(calp->status.is_nodelay)
      {
      bnod=(Z)calp->status.is_nodelay;
@@ -53080,7 +53081,7 @@ oof;
    case WEBSOCKET_STAGE_OPEN:
    //if(cs.is_ready!=YES)   {   break;   }
    if(cs.is_connected!=YES) { break; }
-   if(cs.is_good!=YES)      { break; }
+   if(cs.is_ready!=YES)     { break; }
    if(cs.is_closed)         { break; }
    if(websocket->is_incoming==YES) //---- incoming calls !!!!!!!!!!!!!!!!!!!!!
     {
@@ -55248,8 +55249,11 @@ oof;
  if(calp->status.is_tls)
   {
   aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
-  DeleteSecurityContext(&ctx->context);
-  FreeCredentialsHandle(&ctx->handle);
+  if(&ctx->context) {  DeleteSecurityContext(&ctx->context); }//appLog(0,F32,"call destroy del context"); }
+  if(&ctx->handle)  {  FreeCredentialsHandle(&ctx->handle);  }//appLog(0,F32,"call destroy del cred");    }
+  //ctx->context=NULL;
+  //ctx->handle=NULL;
+
   }
 
  if(calp->socket_used)
@@ -55324,7 +55328,7 @@ oof;
   while(1)
    {
    if(recv(calp->sock,(CP)junk,576,0)<=0) { break; }
-   appLog(0,F32,"%s recv",__func__);
+   //appLog(0,F32,"%s recv",__func__);
    if(is_aa_quit_posted==YES) {  break; }
    if((go++)>10) { break; }
    }
@@ -55334,7 +55338,7 @@ oof;
    aaTimerTikGet(&calp->local_closed_ms_root);
    calp->status.local_closed_ms=0;
    calp->status.closed_ms=calp->status.local_closed_ms;
-   appLog(0,F32,"line=%i closed",__LINE__);
+   //appLog(0,F32,"line=%i closed",__LINE__);
    }
   calp->status.is_closed_by_local=YES;
   //appLog(0,F32,"line=%i closed",__LINE__);
@@ -55704,14 +55708,13 @@ oof;
 
  aa.net_system.net_status.current_outgoing_tcp_call_count++;
  aa.net_system.net_status.total_outgoing_tcp_call_count++;
- aaNetTcpCallSlicerLengthSet(*handle,_8K,_8K);
+ aaNetTcpCallSlicerLengthSet(*handle,_12K,_12K);
  aaNetTcpCallBufferLengthSet(*handle,_32K,_32K);
  calp->status.user_data=calp->user_data;
  calp->status.user_bytes=sizeof(calp->user_data);
  aa.net_system.net_status.current_tcp_calls_connected++;
  calp->status.is_connected=YES;
-
- calp->status.is_good=YES;
+ calp->status.is_ready=YES;
 
  aaStringCopyf(calp->status.host,"%s",tcpcallterms->call.status.host);
  calp->status.rcve_buffer_length=tcpcallterms->call.status.rcve_buffer_length;
@@ -55774,14 +55777,14 @@ oof;
  aa.net_system.net_status.current_tcp_calls_connected++;
 
  calp->status.is_connected=YES;
- calp->status.is_good=YES;
+ calp->status.is_ready=YES;
 
 
  #if 1
- aaNetTcpCallSlicerLengthSet(handle,_8K,_8K);
+ aaNetTcpCallSlicerLengthSet(handle,_12K,_12K);
  aaNetTcpCallBufferLengthSet(handle,_32K,_32K);
  #else
- aaNetTcpCallSlicerLengthSet(handle,_8K,_8K);
+ aaNetTcpCallSlicerLengthSet(handle,_12K,_12K);
  aaNetTcpCallBufferLengthSet(handle,_32K,_32K);
  #endif
   calp->status.user_data=calp->user_data;
@@ -56543,8 +56546,8 @@ oof;
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.net_system.tcpcall_object_id,handle,(VP)&calp,NULL))!=RET_YES) { return ret; }
- calp->status.rcve_slicer_length=aaNumClamp(rbytes,1,_8K);
- calp->status.xmit_slicer_length=aaNumClamp(xbytes,1,_8K);
+ calp->status.rcve_slicer_length=aaNumClamp(rbytes,1,_12K);
+ calp->status.xmit_slicer_length=aaNumClamp(xbytes,1,_12K);
  return RET_YES;
  }
 
@@ -59771,6 +59774,7 @@ oof;
 
    case 110:
    if(ftpclient->ctrl.call.status.is_connected!=YES) { break; }
+   if(ftpclient->ctrl.call.status.is_ready!=YES) { break; }
    //ezlog,"connected");
 //   aaDebugf("connected");
    ftpclient->stage=120;
@@ -59987,6 +59991,7 @@ oof;
 
    case 320:
    if(ftpclient->auxx.call.status.is_connected!=YES) { break; }
+   if(ftpclient->auxx.call.status.is_ready!=YES) { break; }
    aaNetTcpCallWritef(ftpclient->ctrl.call.handle,"mlsd\r\n");
    aa_NetFtpClientResponseWait(ftpclient);
    ftpclient->stage=330;
@@ -60192,6 +60197,7 @@ oof;
 
    case 820:
    if(ftpclient->auxx.call.status.is_connected!=YES) { break; }
+   if(ftpclient->auxx.call.status.is_ready!=YES) { break; }
    if(ftpclient->is_resume_supported==UNKNOWN||(ftpclient->is_resume_supported==YES&&ftpclient->file_off>0))
     {
     aaNetTcpCallWritef(ftpclient->ctrl.call.handle,"rest %I64d\r\n",ftpclient->file_off);
@@ -60289,6 +60295,7 @@ oof;
 
    case 920:
    if(ftpclient->auxx.call.status.is_connected!=YES) { break; }
+   if(ftpclient->auxx.call.status.is_ready!=YES) { break; }
    if(ftpclient->is_resume_supported==UNKNOWN||(ftpclient->is_resume_supported==YES&&ftpclient->file_off>0))
     {
     aaNetTcpCallWritef(ftpclient->ctrl.call.handle,"rest %I64d\r\n",ftpclient->file_off);
@@ -60497,6 +60504,7 @@ oof;
 
    case 2000:
    if(ftpclient->auxx.call.status.is_connected!=YES) { break; }
+   if(ftpclient->auxx.call.status.is_ready!=YES) { break; }
    aaNetTcpCallWritef(ftpclient->ctrl.call.handle,"mlsd\r\n");
    aa_NetFtpClientResponseWait(ftpclient);
    ftpclient->stage=2030;
@@ -61097,7 +61105,7 @@ oof;
   case 120:
   aaNetTcpCallStatus(redcall->tcpcall.handle,&redcall->tcpcall.status);
   //if(redcall->tcpcall.status.is_ready!=YES) { break; }
-  if(redcall->tcpcall.status.is_good!=YES) { break; }
+  if(redcall->tcpcall.status.is_ready!=YES) { break; }
   if(aaStringIsEmpty(redcall->auth,YES)==NO) { redcall->stage=140; break; }
   redcall->stage=200;
   break;
@@ -61705,6 +61713,7 @@ oof;
    case 120:
    aaNetTcpCallStatus(torchanger->call.handle,&torchanger->call.status);
    if(torchanger->call.status.is_connected!=YES) { break; }
+   if(torchanger->call.status.is_ready!=YES) { break; }
    aaNetTcpCallWritef(torchanger->call.handle,"AUTHENTICATE \"\"\r\n");
    torchanger->stage=140;
    break;
@@ -92275,6 +92284,7 @@ whatever is possible
  ret=aaNetTcpCallStatus(call.handle,&call.status);
  if(ret!=RET_YES) { return ret; }
  if(call.status.is_connected!=YES) { return RET_NOTREADY; }
+ if(call.status.is_ready!=YES) { return RET_NOTREADY; }
  if(call.status.extra_bytes!=sizeof(_websocketservercalldata)) { return RET_NOTREADY; }
  if(call.status.is_incoming!=YES) { return RET_NOTREADY; }
  scd=(_websocketservercalldata*)call.status.extra_data;
@@ -92309,24 +92319,25 @@ whatever is possible
    {
    aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
    if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,&websocketserver->port_iter1       ))!=YES) { break; }
-   if(websocketserver->call.status.is_connected!=YES)
+   //if(websocketserver->call.status.is_connected!=YES)
+   if(websocketserver->call.status.is_ready!=YES)
     {
     if(0)
      {
-     aaDebugf("azzzzox %s,%s,%s,eb=%i so=%i\nisin=%i iscon=%i",
+     aaDebugf("azzzzox %s,%s,%s,eb=%i so=%i\nisin=%i iscon=%i isrdy=%i",
      websocketserver->call.status.src_dot,websocketserver->call.status.local_dot,websocketserver->call.status.remote_dot,
      websocketserver->call.status.extra_bytes,sizeof(_websocketservercalldata),
-     websocketserver->call.status.is_incoming,websocketserver->call.status.is_connected );
+     websocketserver->call.status.is_incoming,websocketserver->call.status.is_connected,websocketserver->call.status.is_ready);
      }
     break;
     }
 
    if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata))
     {
-    aaNote(0,"bzzzzox %s,%s,%s,eb=%i so=%i\nisin=%i iscon=%i",
+    aaNote(0,"bzzzzox %s,%s,%s,eb=%i so=%i\nisin=%i iscon=%i isrdy=%i",
     websocketserver->call.status.src_dot,websocketserver->call.status.local_dot,websocketserver->call.status.remote_dot,
     websocketserver->call.status.extra_bytes,sizeof(_websocketservercalldata),
-    websocketserver->call.status.is_incoming,websocketserver->call.status.is_connected );
+    websocketserver->call.status.is_incoming,websocketserver->call.status.is_connected,websocketserver->call.status.is_ready );
     break;
     }
    scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
@@ -92448,7 +92459,7 @@ whatever is possible
    case 10:
    aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status);
    if(websocketclient->call.status.is_connected!=YES) { break; }
-   if(websocketclient->call.status.is_good!=YES) { break; }
+   if(websocketclient->call.status.is_ready!=YES) { break; }
    if(0) { aaDebugf("websocketclient connected, %i ",websocketclient->call.status.extra_bytes); }
    websocketclient->stage=20;
    break;
@@ -92740,7 +92751,7 @@ whatever is possible
    case 150:
    aaNetTcpCallStatus(rednet->call.handle,&rednet->call.status);
    if(rednet->call.status.is_connected!=YES) { break; }
-   if(rednet->call.status.is_good!=YES) { break; }
+   if(rednet->call.status.is_ready!=YES) { break; }
    //app.rednety_ready_count++;
    if(0) { aaDebugf("rednety %i ready",rednet->self_index); }
    rednet->is_ready=YES;
@@ -96262,7 +96273,7 @@ whatever is possible
    aaNetTcpCallStatus(mysql->call.handle,&mysql->call.status);
    flag=0;
    if(mysql->call.status.is_connected!=YES) { ita=0; break; }
-   if(mysql->call.status.is_good!=YES) { ita=0; break; }
+   if(mysql->call.status.is_ready!=YES) { ita=0; break; }
    mysql->stage=40;
    break;
 
