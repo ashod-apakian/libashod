@@ -37,7 +37,7 @@ linker options
  H aa_hyper_parm_2=3;    // aaShellRead was 4
  H aa_hyper_parm_3=2;    // aaJsonStatus , number of aa_jsonSystemDecode's called
 
- H binerr_user_cntr=0;
+ ////H binerr_user_cntr=0;
 
 /*-----------------------------------------------------------------------*/
  V aaDummyFunction1                    (){} // this function is the first function offset, useful for aaFuncInfoGet
@@ -1822,6 +1822,22 @@ linker options
  B aa_QueSystemStart                   (V);
  V aa_QueSystemStop                    (V);
  B aa_QueSystemExtendPageSlots         (PP mem,H by);
+
+/*-----------------------------------------------------------------------*/
+
+ structure
+ {
+ _unirange uni_range[400];
+ H uni_range_count;
+ }
+ _aa_unisystem;
+
+ B aa_UniSystemStart                   (V);
+ V aa_UniSystemStop                    (V);
+
+ V aa_UniRangeAdd                      (H first,H last,VP cc,VP fmt,...);
+
+
 
 /*-----------------------------------------------------------------------*/
 
@@ -7439,6 +7455,7 @@ fail:
  _aa_mathsystem math_system;
  _aa_dynbufsystem dynbuf_system;
  _aa_quesystem que_system;
+ _aa_unisystem uni_system;
  _aa_netsystem net_system;
  _aa_fontsystem font_system;
  _aa_displaysystem display_system;
@@ -7791,6 +7808,7 @@ fail:
  aa_MathSystemStart();
  aa_DynbufSystemStart();
  aa_QueSystemStart();
+ aa_UniSystemStart();
  if((ret=aa_NetSystemStart())!=YES) { return ret; }
  aa_FontSystemStart();
  aa_DisplaySystemStart();
@@ -7910,6 +7928,7 @@ fail:
  aa_last_line_executed=__LINE__;
  aa_NetSystemStop();
  aa_last_line_executed=__LINE__;
+ aa_UniSystemStop();
  aa_QueSystemStop();
  aa_DynbufSystemStop();
  aa_MathSystemStop();
@@ -19954,6 +19973,368 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
 
 /*-----------------------------------------------------------------------*/
 
+ B aa_UniSystemStart                   (V)
+ {
+ logg("aa_UniSystemStart()");
+ aa_UniRangeAdd(0x0000,0x007F,"xx","Basic Latin");
+ aa_UniRangeAdd(0x0080,0x00FF,"xx","Latin-1 Supplement");
+ aa_UniRangeAdd(0x0100,0x017F,"xx","Latin Extended-A");
+ aa_UniRangeAdd(0x0180,0x024F,"xx","Latin Extended-B");
+ aa_UniRangeAdd(0x0250,0x02AF,"xx","IPA Extensions");
+ aa_UniRangeAdd(0x02B0,0x02FF,"xx","Spacing Modifier Letters");
+ aa_UniRangeAdd(0x0300,0x036F,"xx","Combining Diacritical Marks");
+ aa_UniRangeAdd(0x0370,0x03FF,"el","Greek and Coptic");
+ aa_UniRangeAdd(0x0400,0x04FF,"xx","Cyrillic");
+ aa_UniRangeAdd(0x0500,0x052F,"xx","Cyrillic Supplement");
+             aa_UniRangeAdd(0x0530,0x058F,"am","Armenian");
+             aa_UniRangeAdd(0x0590,0x05FF,"he","Hebrew");
+             aa_UniRangeAdd(0x0600,0x06FF,"ar","Arabic");
+ aa_UniRangeAdd(0x0700,0x074F,"xx","Syriac");
+ aa_UniRangeAdd(0x0750,0x077F,"xx","Arabic Supplement");
+ aa_UniRangeAdd(0x0780,0x07BF,"xx","Thaana");
+ aa_UniRangeAdd(0x07C0,0x07FF,"xx","NKo");
+ aa_UniRangeAdd(0x0800,0x083F,"xx","Samaritan");
+ aa_UniRangeAdd(0x0840,0x085F,"xx","Mandaic");
+ aa_UniRangeAdd(0x0860,0x086F,"xx","Syriac Supplement");
+ aa_UniRangeAdd(0x0870,0x089F,"xx","Arabic Extended-B");
+ aa_UniRangeAdd(0x08A0,0x08FF,"xx","Arabic Extended-A");
+ aa_UniRangeAdd(0x0900,0x097F,"xx","Devanagari");
+ aa_UniRangeAdd(0x0980,0x09FF,"xx","Bengali");
+ aa_UniRangeAdd(0x0A00,0x0A7F,"xx","Gurmukhi");
+ aa_UniRangeAdd(0x0A80,0x0AFF,"xx","Gujarati");
+ aa_UniRangeAdd(0x0B00,0x0B7F,"xx","Oriya");
+ aa_UniRangeAdd(0x0B80,0x0BFF,"ta","Tamil");
+ aa_UniRangeAdd(0x0C00,0x0C7F,"xx","Telugu");
+ aa_UniRangeAdd(0x0C80,0x0CFF,"xx","Kannada");
+ aa_UniRangeAdd(0x0D00,0x0D7F,"xx","Malayalam");
+ aa_UniRangeAdd(0x0D80,0x0DFF,"xx","Sinhala");
+             aa_UniRangeAdd(0x0E00,0x0E7F,"th","Thai");
+ aa_UniRangeAdd(0x0E80,0x0EFF,"xx","Lao");
+ aa_UniRangeAdd(0x0F00,0x0FFF,"xx","Tibetan");
+ aa_UniRangeAdd(0x1000,0x109F,"xx","Myanmar");
+ aa_UniRangeAdd(0x10A0,0x10FF,"xx","Georgian");
+ aa_UniRangeAdd(0x1100,0x11FF,"xx","Hangul Jamo");
+ aa_UniRangeAdd(0x1200,0x137F,"xx","Ethiopic");
+ aa_UniRangeAdd(0x1380,0x139F,"xx","Ethiopic Supplement");
+ aa_UniRangeAdd(0x13A0,0x13FF,"xx","Cherokee");
+ aa_UniRangeAdd(0x1400,0x167F,"xx","Unified Canadian Aboriginal Syllabics");
+ aa_UniRangeAdd(0x1680,0x169F,"xx","Ogham");
+ aa_UniRangeAdd(0x16A0,0x16FF,"xx","Runic");
+ aa_UniRangeAdd(0x1700,0x171F,"xx","Tagalog");
+ aa_UniRangeAdd(0x1720,0x173F,"xx","Hanunoo");
+ aa_UniRangeAdd(0x1740,0x175F,"xx","Buhid");
+ aa_UniRangeAdd(0x1760,0x177F,"xx","Tagbanwa");
+ aa_UniRangeAdd(0x1780,0x17FF,"xx","Khmer");
+ aa_UniRangeAdd(0x1800,0x18AF,"xx","Mongolian");
+ aa_UniRangeAdd(0x18B0,0x18FF,"xx","Unified Canadian Aboriginal Syllabics Extended");
+ aa_UniRangeAdd(0x1900,0x194F,"xx","Limbu");
+ aa_UniRangeAdd(0x1950,0x197F,"xx","Tai Le");
+ aa_UniRangeAdd(0x1980,0x19DF,"xx","New Tai Lue");
+ aa_UniRangeAdd(0x19E0,0x19FF,"xx","Khmer Symbols");
+ aa_UniRangeAdd(0x1A00,0x1A1F,"xx","Buginese");
+ aa_UniRangeAdd(0x1A20,0x1AAF,"xx","Tai Tham");
+ aa_UniRangeAdd(0x1AB0,0x1AFF,"xx","Combining Diacritical Marks Extended");
+ aa_UniRangeAdd(0x1B00,0x1B7F,"xx","Balinese");
+ aa_UniRangeAdd(0x1B80,0x1BBF,"xx","Sundanese");
+ aa_UniRangeAdd(0x1BC0,0x1BFF,"xx","Batak");
+ aa_UniRangeAdd(0x1C00,0x1C4F,"xx","Lepcha");
+ aa_UniRangeAdd(0x1C50,0x1C7F,"xx","Ol Chiki");
+ aa_UniRangeAdd(0x1C80,0x1C8F,"xx","Cyrillic Extended-C");
+ aa_UniRangeAdd(0x1C90,0x1CBF,"xx","Georgian Extended");
+ aa_UniRangeAdd(0x1CC0,0x1CCF,"xx","Sundanese Supplement");
+ aa_UniRangeAdd(0x1CD0,0x1CFF,"xx","Vedic Extensions");
+ aa_UniRangeAdd(0x1D00,0x1D7F,"xx","Phonetic Extensions");
+ aa_UniRangeAdd(0x1D80,0x1DBF,"xx","Phonetic Extensions Supplement");
+ aa_UniRangeAdd(0x1DC0,0x1DFF,"xx","Combining Diacritical Marks Supplement");
+ aa_UniRangeAdd(0x1E00,0x1EFF,"xx","Latin Extended Additional");
+ aa_UniRangeAdd(0x1F00,0x1FFF,"xx","Greek Extended");
+ aa_UniRangeAdd(0x2000,0x206F,"xx","General Punctuation");
+ aa_UniRangeAdd(0x2070,0x209F,"xx","Superscripts and Subscripts");
+ aa_UniRangeAdd(0x20A0,0x20CF,"xx","Currency Symbols");
+ aa_UniRangeAdd(0x20D0,0x20FF,"xx","Combining Diacritical Marks for Symbols");
+ aa_UniRangeAdd(0x2100,0x214F,"xx","Letterlike Symbols");
+ aa_UniRangeAdd(0x2150,0x218F,"xx","Number Forms");
+ aa_UniRangeAdd(0x2190,0x21FF,"xx","Arrows");
+ aa_UniRangeAdd(0x2200,0x22FF,"xx","Mathematical Operators");
+ aa_UniRangeAdd(0x2300,0x23FF,"xx","Miscellaneous Technical");
+ aa_UniRangeAdd(0x2400,0x243F,"xx","Control Pictures");
+ aa_UniRangeAdd(0x2440,0x245F,"xx","Optical Character Recognition");
+ aa_UniRangeAdd(0x2460,0x24FF,"xx","Enclosed Alphanumerics");
+ aa_UniRangeAdd(0x2500,0x257F,"xx","Box Drawing");
+ aa_UniRangeAdd(0x2580,0x259F,"xx","Block Elements");
+ aa_UniRangeAdd(0x25A0,0x25FF,"xx","Geometric Shapes");
+ aa_UniRangeAdd(0x2600,0x26FF,"xx","Miscellaneous Symbols");
+ aa_UniRangeAdd(0x2700,0x27BF,"xx","Dingbats");
+ aa_UniRangeAdd(0x27C0,0x27EF,"xx","Miscellaneous Mathematical Symbols-A");
+ aa_UniRangeAdd(0x27F0,0x27FF,"xx","Supplemental Arrows-A");
+ aa_UniRangeAdd(0x2800,0x28FF,"xx","Braille Patterns");
+ aa_UniRangeAdd(0x2900,0x297F,"xx","Supplemental Arrows-B");
+ aa_UniRangeAdd(0x2980,0x29FF,"xx","Miscellaneous Mathematical Symbols-B");
+ aa_UniRangeAdd(0x2A00,0x2AFF,"xx","Supplemental Mathematical Operators");
+ aa_UniRangeAdd(0x2B00,0x2BFF,"xx","Miscellaneous Symbols and Arrows");
+ aa_UniRangeAdd(0x2C00,0x2C5F,"xx","Glagolitic");
+ aa_UniRangeAdd(0x2C60,0x2C7F,"xx","Latin Extended-C");
+ aa_UniRangeAdd(0x2C80,0x2CFF,"xx","Coptic");
+ aa_UniRangeAdd(0x2D00,0x2D2F,"xx","Georgian Supplement");
+ aa_UniRangeAdd(0x2D30,0x2D7F,"xx","Tifinagh");
+ aa_UniRangeAdd(0x2D80,0x2DDF,"xx","Ethiopic Extended");
+ aa_UniRangeAdd(0x2DE0,0x2DFF,"xx","Cyrillic Extended-A");
+ aa_UniRangeAdd(0x2E00,0x2E7F,"xx","Supplemental Punctuation");
+ aa_UniRangeAdd(0x2E80,0x2EFF,"xx","CJK Radicals Supplement");
+ aa_UniRangeAdd(0x2F00,0x2FDF,"xx","Kangxi Radicals");
+ aa_UniRangeAdd(0x2FF0,0x2FFF,"xx","Ideographic Description Characters");
+ aa_UniRangeAdd(0x3000,0x303F,"xx","CJK Symbols and Punctuation");
+             aa_UniRangeAdd(0x3040,0x309F,"jp","Hiragana");
+             aa_UniRangeAdd(0x30A0,0x30FF,"jp","Katakana");
+ aa_UniRangeAdd(0x3100,0x312F,"xx","Bopomofo");
+ aa_UniRangeAdd(0x3130,0x318F,"xx","Hangul Compatibility Jamo");
+ aa_UniRangeAdd(0x3190,0x319F,"xx","Kanbun");
+ aa_UniRangeAdd(0x31A0,0x31BF,"xx","Bopomofo Extended");
+ aa_UniRangeAdd(0x31C0,0x31EF,"xx","CJK Strokes");
+ aa_UniRangeAdd(0x31F0,0x31FF,"xx","Katakana Phonetic Extensions");
+ aa_UniRangeAdd(0x3200,0x32FF,"xx","Enclosed CJK Letters and Months");
+ aa_UniRangeAdd(0x3300,0x33FF,"xx","CJK Compatibility");
+ aa_UniRangeAdd(0x3400,0x4DBF,"xx","CJK Unified Ideographs Extension A");
+ aa_UniRangeAdd(0x4DC0,0x4DFF,"xx","Yijing Hexagram Symbols");
+             aa_UniRangeAdd(0x4E00,0x9FFF,"zh","CJK Unified Ideographs");
+ aa_UniRangeAdd(0xA000,0xA48F,"xx","Yi Syllables");
+ aa_UniRangeAdd(0xA490,0xA4CF,"xx","Yi Radicals");
+ aa_UniRangeAdd(0xA4D0,0xA4FF,"xx","Lisu");
+ aa_UniRangeAdd(0xA500,0xA63F,"xx","Vai");
+ aa_UniRangeAdd(0xA640,0xA69F,"xx","Cyrillic Extended-B");
+ aa_UniRangeAdd(0xA6A0,0xA6FF,"xx","Bamum");
+ aa_UniRangeAdd(0xA700,0xA71F,"xx","Modifier Tone Letters");
+ aa_UniRangeAdd(0xA720,0xA7FF,"xx","Latin Extended-D");
+ aa_UniRangeAdd(0xA800,0xA82F,"xx","Syloti Nagri");
+ aa_UniRangeAdd(0xA830,0xA83F,"xx","Common Indic Number Forms");
+ aa_UniRangeAdd(0xA840,0xA87F,"xx","Phags-pa");
+ aa_UniRangeAdd(0xA880,0xA8DF,"xx","Saurashtra");
+ aa_UniRangeAdd(0xA8E0,0xA8FF,"xx","Devanagari Extended");
+ aa_UniRangeAdd(0xA900,0xA92F,"xx","Kayah Li");
+ aa_UniRangeAdd(0xA930,0xA95F,"xx","Rejang");
+ aa_UniRangeAdd(0xA960,0xA97F,"xx","Hangul Jamo Extended-A");
+ aa_UniRangeAdd(0xA980,0xA9DF,"xx","Javanese");
+ aa_UniRangeAdd(0xA9E0,0xA9FF,"xx","Myanmar Extended-B");
+ aa_UniRangeAdd(0xAA00,0xAA5F,"xx","Cham");
+ aa_UniRangeAdd(0xAA60,0xAA7F,"xx","Myanmar Extended-A");
+ aa_UniRangeAdd(0xAA80,0xAADF,"xx","Tai Viet");
+ aa_UniRangeAdd(0xAAE0,0xAAFF,"xx","Meetei Mayek Extensions");
+ aa_UniRangeAdd(0xAB00,0xAB2F,"xx","Ethiopic Extended-A");
+ aa_UniRangeAdd(0xAB30,0xAB6F,"xx","Latin Extended-E");
+ aa_UniRangeAdd(0xAB70,0xABBF,"xx","Cherokee Supplement");
+ aa_UniRangeAdd(0xABC0,0xABFF,"xx","Meetei Mayek");
+             aa_UniRangeAdd(0xAC00,0xD7AF,"ko","Hangul Syllables");
+ aa_UniRangeAdd(0xD7B0,0xD7FF,"xx","Hangul Jamo Extended-B");
+ aa_UniRangeAdd(0xD800,0xDB7F,"xx","High Surrogates");
+ aa_UniRangeAdd(0xDB80,0xDBFF,"xx","High Private Use Surrogates");
+ aa_UniRangeAdd(0xDC00,0xDFFF,"xx","Low Surrogates");
+ aa_UniRangeAdd(0xE000,0xF8FF,"xx","Private Use Area");
+ aa_UniRangeAdd(0xF900,0xFAFF,"xx","CJK Compatibility Ideographs");
+ aa_UniRangeAdd(0xFB00,0xFB4F,"xx","Alphabetic Presentation Forms");
+ aa_UniRangeAdd(0xFB50,0xFDFF,"xx","Arabic Presentation Forms-A");
+ aa_UniRangeAdd(0xFE00,0xFE0F,"xx","Variation Selectors");
+ aa_UniRangeAdd(0xFE10,0xFE1F,"xx","Vertical Forms");
+ aa_UniRangeAdd(0xFE20,0xFE2F,"xx","Combining Half Marks");
+ aa_UniRangeAdd(0xFE30,0xFE4F,"xx","CJK Compatibility Forms");
+ aa_UniRangeAdd(0xFE50,0xFE6F,"xx","Small Form Variants");
+ aa_UniRangeAdd(0xFE70,0xFEFF,"xx","Arabic Presentation Forms-B");
+ aa_UniRangeAdd(0xFF00,0xFFEF,"xx","Halfwidth and Fullwidth Forms");
+ aa_UniRangeAdd(0xFFF0,0xFFFF,"xx","Specials");
+ aa_UniRangeAdd(0x10000,0x1007F,"xx","Linear B Syllabary");
+ aa_UniRangeAdd(0x10080,0x100FF,"xx","Linear B Ideograms");
+ aa_UniRangeAdd(0x10100,0x1013F,"xx","Aegean Numbers");
+ aa_UniRangeAdd(0x10140,0x1018F,"xx","Ancient Greek Numbers");
+ aa_UniRangeAdd(0x10190,0x101CF,"xx","Ancient Symbols");
+ aa_UniRangeAdd(0x101D0,0x101FF,"xx","Phaistos Disc");
+ aa_UniRangeAdd(0x10280,0x1029F,"xx","Lycian");
+ aa_UniRangeAdd(0x102A0,0x102DF,"xx","Carian");
+ aa_UniRangeAdd(0x102E0,0x102FF,"xx","Coptic Epact Numbers");
+ aa_UniRangeAdd(0x10300,0x1032F,"xx","Old Italic");
+ aa_UniRangeAdd(0x10330,0x1034F,"xx","Gothic");
+ aa_UniRangeAdd(0x10350,0x1037F,"xx","Old Permic");
+ aa_UniRangeAdd(0x10380,0x1039F,"xx","Ugaritic");
+ aa_UniRangeAdd(0x103A0,0x103DF,"xx","Old Persian");
+ aa_UniRangeAdd(0x10400,0x1044F,"xx","Deseret");
+ aa_UniRangeAdd(0x10450,0x1047F,"xx","Shavian");
+ aa_UniRangeAdd(0x10480,0x104AF,"xx","Osmanya");
+ aa_UniRangeAdd(0x104B0,0x104FF,"xx","Osage");
+ aa_UniRangeAdd(0x10500,0x1052F,"xx","Elbasan");
+ aa_UniRangeAdd(0x10530,0x1056F,"xx","Caucasian Albanian");
+ aa_UniRangeAdd(0x10570,0x105BF,"xx","Vithkuqi");
+ aa_UniRangeAdd(0x10600,0x1077F,"xx","Linear A");
+ aa_UniRangeAdd(0x10780,0x107BF,"xx","Latin Extended-F");
+ aa_UniRangeAdd(0x10800,0x1083F,"xx","Cypriot Syllabary");
+ aa_UniRangeAdd(0x10840,0x1085F,"xx","Imperial Aramaic");
+ aa_UniRangeAdd(0x10860,0x1087F,"xx","Palmyrene");
+ aa_UniRangeAdd(0x10880,0x108AF,"xx","Nabataean");
+ aa_UniRangeAdd(0x108E0,0x108FF,"xx","Hatran");
+ aa_UniRangeAdd(0x10900,0x1091F,"xx","Phoenician");
+ aa_UniRangeAdd(0x10920,0x1093F,"xx","Lydian");
+ aa_UniRangeAdd(0x10980,0x1099F,"xx","Meroitic Hieroglyphs");
+ aa_UniRangeAdd(0x109A0,0x109FF,"xx","Meroitic Cursive");
+ aa_UniRangeAdd(0x10A00,0x10A5F,"xx","Kharoshthi");
+ aa_UniRangeAdd(0x10A60,0x10A7F,"xx","Old South Arabian");
+ aa_UniRangeAdd(0x10A80,0x10A9F,"xx","Old North Arabian");
+ aa_UniRangeAdd(0x10AC0,0x10AFF,"xx","Manichaean");
+ aa_UniRangeAdd(0x10B00,0x10B3F,"xx","Avestan");
+ aa_UniRangeAdd(0x10B40,0x10B5F,"xx","Inscriptional Parthian");
+ aa_UniRangeAdd(0x10B60,0x10B7F,"xx","Inscriptional Pahlavi");
+ aa_UniRangeAdd(0x10B80,0x10BAF,"xx","Psalter Pahlavi");
+ aa_UniRangeAdd(0x10C00,0x10C4F,"xx","Old Turkic");
+ aa_UniRangeAdd(0x10C80,0x10CFF,"xx","Old Hungarian");
+ aa_UniRangeAdd(0x10D00,0x10D3F,"xx","Hanifi Rohingya");
+ aa_UniRangeAdd(0x10E60,0x10E7F,"xx","Rumi Numeral Symbols");
+ aa_UniRangeAdd(0x10E80,0x10EBF,"xx","Yezidi");
+ aa_UniRangeAdd(0x10EC0,0x10EFF,"xx","Arabic Extended-C");
+ aa_UniRangeAdd(0x10F00,0x10F2F,"xx","Old Sogdian");
+ aa_UniRangeAdd(0x10F30,0x10F6F,"xx","Sogdian");
+ aa_UniRangeAdd(0x10F70,0x10FAF,"xx","Old Uyghur");
+ aa_UniRangeAdd(0x10FB0,0x10FDF,"xx","Chorasmian");
+ aa_UniRangeAdd(0x10FE0,0x10FFF,"xx","Elymaic");
+ aa_UniRangeAdd(0x11000,0x1107F,"xx","Brahmi");
+ aa_UniRangeAdd(0x11080,0x110CF,"xx","Kaithi");
+ aa_UniRangeAdd(0x110D0,0x110FF,"xx","Sora Sompeng");
+ aa_UniRangeAdd(0x11100,0x1114F,"xx","Chakma");
+ aa_UniRangeAdd(0x11150,0x1117F,"xx","Mahajani");
+ aa_UniRangeAdd(0x11180,0x111DF,"xx","Sharada");
+ aa_UniRangeAdd(0x111E0,0x111FF,"xx","Sinhala Archaic Numbers");
+ aa_UniRangeAdd(0x11200,0x1124F,"xx","Khojki");
+ aa_UniRangeAdd(0x11280,0x112AF,"xx","Multani");
+ aa_UniRangeAdd(0x112B0,0x112FF,"xx","Khudawadi");
+ aa_UniRangeAdd(0x11300,0x1137F,"xx","Grantha");
+ aa_UniRangeAdd(0x11400,0x1147F,"xx","Newa");
+ aa_UniRangeAdd(0x11480,0x114DF,"xx","Tirhuta");
+ aa_UniRangeAdd(0x11580,0x115FF,"xx","Siddham");
+ aa_UniRangeAdd(0x11600,0x1165F,"xx","Modi");
+ aa_UniRangeAdd(0x11660,0x1167F,"xx","Mongolian Supplement");
+ aa_UniRangeAdd(0x11680,0x116CF,"xx","Takri");
+ aa_UniRangeAdd(0x11700,0x1174F,"xx","Ahom");
+ aa_UniRangeAdd(0x11800,0x1184F,"xx","Dogra");
+ aa_UniRangeAdd(0x118A0,0x118FF,"xx","Warang Citi");
+ aa_UniRangeAdd(0x11900,0x1195F,"xx","Dives Akuru");
+ aa_UniRangeAdd(0x119A0,0x119FF,"xx","Nandinagari");
+ aa_UniRangeAdd(0x11A00,0x11A4F,"xx","Zanabazar Square");
+ aa_UniRangeAdd(0x11A50,0x11AAF,"xx","Soyombo");
+ aa_UniRangeAdd(0x11AB0,0x11ABF,"xx","Unified Canadian Aboriginal Syllabics Extended-A");
+ aa_UniRangeAdd(0x11AC0,0x11AFF,"xx","Pau Cin Hau");
+ aa_UniRangeAdd(0x11B00,0x11B5F,"xx","Devanagari Extended-A");
+ aa_UniRangeAdd(0x11C00,0x11C6F,"xx","Bhaiksuki");
+ aa_UniRangeAdd(0x11C70,0x11CBF,"xx","Marchen");
+ aa_UniRangeAdd(0x11D00,0x11D5F,"xx","Masaram Gondi");
+ aa_UniRangeAdd(0x11D60,0x11DAF,"xx","Gunjala Gondi");
+ aa_UniRangeAdd(0x11EE0,0x11EFF,"xx","Makasar");
+ aa_UniRangeAdd(0x11F00,0x11F5F,"xx","Kawi");
+ aa_UniRangeAdd(0x11FB0,0x11FBF,"xx","Lisu Supplement");
+ aa_UniRangeAdd(0x11FC0,0x11FFF,"xx","Tamil Supplement");
+ aa_UniRangeAdd(0x12000,0x123FF,"xx","Cuneiform");
+ aa_UniRangeAdd(0x12400,0x1247F,"xx","Cuneiform Numbers and Punctuation");
+ aa_UniRangeAdd(0x12480,0x1254F,"xx","Early Dynastic Cuneiform");
+ aa_UniRangeAdd(0x12F90,0x12FFF,"xx","Cypro-Minoan");
+ aa_UniRangeAdd(0x13000,0x1342F,"xx","Egyptian Hieroglyphs");
+ aa_UniRangeAdd(0x13430,0x1345F,"xx","Egyptian Hieroglyph Format Controls");
+ aa_UniRangeAdd(0x14400,0x1467F,"xx","Anatolian Hieroglyphs");
+ aa_UniRangeAdd(0x16800,0x16A3F,"xx","Bamum Supplement");
+ aa_UniRangeAdd(0x16A40,0x16A6F,"xx","Mro");
+ aa_UniRangeAdd(0x16A70,0x16ACF,"xx","Tangsa");
+ aa_UniRangeAdd(0x16AD0,0x16AFF,"xx","Bassa Vah");
+ aa_UniRangeAdd(0x16B00,0x16B8F,"xx","Pahawh Hmong");
+ aa_UniRangeAdd(0x16E40,0x16E9F,"xx","Medefaidrin");
+ aa_UniRangeAdd(0x16F00,0x16F9F,"xx","Miao");
+ aa_UniRangeAdd(0x16FE0,0x16FFF,"xx","Ideographic Symbols and Punctuation");
+ aa_UniRangeAdd(0x17000,0x187FF,"xx","Tangut");
+ aa_UniRangeAdd(0x18800,0x18AFF,"xx","Tangut Components");
+ aa_UniRangeAdd(0x18B00,0x18CFF,"xx","Khitan Small Script");
+ aa_UniRangeAdd(0x18D00,0x18D7F,"xx","Tangut Supplement");
+ aa_UniRangeAdd(0x1AFF0,0x1AFFF,"xx","Kana Extended-B");
+ aa_UniRangeAdd(0x1B000,0x1B0FF,"xx","Kana Supplement");
+ aa_UniRangeAdd(0x1B100,0x1B12F,"xx","Kana Extended-A");
+ aa_UniRangeAdd(0x1B130,0x1B16F,"xx","Small Kana Extension");
+ aa_UniRangeAdd(0x1B170,0x1B2FF,"xx","Nushu");
+ aa_UniRangeAdd(0x1BC00,0x1BC9F,"xx","Duployan");
+ aa_UniRangeAdd(0x1BCA0,0x1BCAF,"xx","Shorthand Format Controls");
+ aa_UniRangeAdd(0x1CF00,0x1CFCF,"xx","Znamenny Musical Notation");
+ aa_UniRangeAdd(0x1D000,0x1D0FF,"xx","Byzantine Musical Symbols");
+ aa_UniRangeAdd(0x1D100,0x1D1FF,"xx","Musical Symbols");
+ aa_UniRangeAdd(0x1D200,0x1D24F,"xx","Ancient Greek Musical Notation");
+ aa_UniRangeAdd(0x1D2C0,0x1D2DF,"xx","Kaktovik Numerals");
+ aa_UniRangeAdd(0x1D2E0,0x1D2FF,"xx","Mayan Numerals");
+ aa_UniRangeAdd(0x1D300,0x1D35F,"xx","Tai Xuan Jing Symbols");
+ aa_UniRangeAdd(0x1D360,0x1D37F,"xx","Counting Rod Numerals");
+ aa_UniRangeAdd(0x1D400,0x1D7FF,"xx","Mathematical Alphanumeric Symbols");
+ aa_UniRangeAdd(0x1D800,0x1DAAF,"xx","Sutton SignWriting");
+ aa_UniRangeAdd(0x1DF00,0x1DFFF,"xx","Latin Extended-G");
+ aa_UniRangeAdd(0x1E000,0x1E02F,"xx","Glagolitic Supplement");
+ aa_UniRangeAdd(0x1E030,0x1E08F,"xx","Cyrillic Extended-D");
+ aa_UniRangeAdd(0x1E100,0x1E14F,"xx","Nyiakeng Puachue Hmong");
+ aa_UniRangeAdd(0x1E290,0x1E2BF,"xx","Toto");
+ aa_UniRangeAdd(0x1E2C0,0x1E2FF,"xx","Wancho");
+ aa_UniRangeAdd(0x1E4D0,0x1E4FF,"xx","Nag Mundari");
+ aa_UniRangeAdd(0x1E7E0,0x1E7FF,"xx","Ethiopic Extended-B");
+ aa_UniRangeAdd(0x1E800,0x1E8DF,"xx","Mende Kikakui");
+ aa_UniRangeAdd(0x1E900,0x1E95F,"xx","Adlam");
+ aa_UniRangeAdd(0x1EC70,0x1ECBF,"xx","Indic Siyaq Numbers");
+ aa_UniRangeAdd(0x1ED00,0x1ED4F,"xx","Ottoman Siyaq Numbers");
+ aa_UniRangeAdd(0x1EE00,0x1EEFF,"xx","Arabic Mathematical Alphabetic Symbols");
+ aa_UniRangeAdd(0x1F000,0x1F02F,"xx","Mahjong Tiles");
+ aa_UniRangeAdd(0x1F030,0x1F09F,"xx","Domino Tiles");
+ aa_UniRangeAdd(0x1F0A0,0x1F0FF,"xx","Playing Cards");
+ aa_UniRangeAdd(0x1F100,0x1F1FF,"xx","Enclosed Alphanumeric Supplement");
+ aa_UniRangeAdd(0x1F200,0x1F2FF,"xx","Enclosed Ideographic Supplement");
+ aa_UniRangeAdd(0x1F300,0x1F5FF,"xx","Miscellaneous Symbols and Pictographs");
+ aa_UniRangeAdd(0x1F600,0x1F64F,"xx","Emoticons");
+ aa_UniRangeAdd(0x1F650,0x1F67F,"xx","Ornamental Dingbats");
+ aa_UniRangeAdd(0x1F680,0x1F6FF,"xx","Transport and Map Symbols");
+ aa_UniRangeAdd(0x1F700,0x1F77F,"xx","Alchemical Symbols");
+ aa_UniRangeAdd(0x1F780,0x1F7FF,"xx","Geometric Shapes Extended");
+ aa_UniRangeAdd(0x1F800,0x1F8FF,"xx","Supplemental Arrows-C");
+ aa_UniRangeAdd(0x1F900,0x1F9FF,"xx","Supplemental Symbols and Pictographs");
+ aa_UniRangeAdd(0x1FA00,0x1FA6F,"xx","Chess Symbols");
+ aa_UniRangeAdd(0x1FA70,0x1FAFF,"xx","Symbols and Pictographs Extended-A");
+ aa_UniRangeAdd(0x1FB00,0x1FBFF,"xx","Symbols for Legacy Computing");
+ aa_UniRangeAdd(0x20000,0x2A6DF,"xx","CJK Unified Ideographs Extension B");
+ aa_UniRangeAdd(0x2A700,0x2B73F,"xx","CJK Unified Ideographs Extension C");
+ aa_UniRangeAdd(0x2B740,0x2B81F,"xx","CJK Unified Ideographs Extension D");
+ aa_UniRangeAdd(0x2B820,0x2CEAF,"xx","CJK Unified Ideographs Extension E");
+ aa_UniRangeAdd(0x2CEB0,0x2EBEF,"xx","CJK Unified Ideographs Extension F");
+ aa_UniRangeAdd(0x2F800,0x2FA1F,"xx","CJK Compatibility Ideographs Supplement");
+ aa_UniRangeAdd(0x30000,0x3134F,"xx","CJK Unified Ideographs Extension G");
+ aa_UniRangeAdd(0x31350,0x323AF,"xx","CJK Unified Ideographs Extension H");
+ aa_UniRangeAdd(0xE0000,0xE007F,"xx","Tags");
+ aa_UniRangeAdd(0xE0100,0xE01EF,"xx","Variation Selectors Supplement");
+ aa_UniRangeAdd(0xF0000,0xFFFFF,"xx","Supplementary Private Use Area-A");
+ aa_UniRangeAdd(0x100000,0x10FFFF,"xx","Supplementary Private Use Area-B");
+ return RET_YES;
+ }
+
+
+
+ V aa_UniSystemStop                    (V)
+ {
+ logg("aa_UniSystemStop()");
+ }
+
+
+
+ V aa_UniRangeAdd                      (H first,H last,VP cc,VP fmt,...)
+ {
+ _unirange*urp;
+ aaVargsf16K(fmt);
+ urp=(_unirange*)&aa.uni_system.uni_range[aa.uni_system.uni_range_count];
+ urp->first=first;
+ urp->last=last;
+ urp->count=(urp->last-urp->first)+1;
+ aaStringCopy(urp->cat,str16k.buf);
+ aaStringCopy(urp->cc,cc);
+ aa.uni_system.uni_range_count++;
+ }
+
+
+
+
+
+
+/*-----------------------------------------------------------------------*/
+
 
  V aa_huffmanWriteTreeAndMakeTable     (BP out,HP outbitctr,H outlen,_aahuff_enctable*et,H code,Y bits,struct _aahuff_node *t)
  {
@@ -21594,19 +21975,19 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
 
   while (sent != total)
    {
-		 d = send(calp->sock, wbuffer + sent, total - sent, 0);
-		if (d <= 0)
-		{
-		 error = WSAGetLastError();
-		// Error sending data to socket, or server disconnected.
-		if (error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)  { aaNote(0,"a tlssend err=%i",error); ctx->state = TLS_STATE_UNKNOWN_ERROR; return -1; }
-		appLog(0,F32,"b tlssend err=%i",error);
-		continue;
-		}
-		totsent+=use;
-		sent += d;
-
-	}
+   d = send(calp->sock, wbuffer + sent, total - sent, 0);
+   if (d <= 0)
+    {
+    error = WSAGetLastError();
+    // Error sending data to socket, or server disconnected.
+    if (error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)  { aaNote(0,"a tlssend err=%i",error); ctx->state = TLS_STATE_UNKNOWN_ERROR; return -1; }
+    if (error == WSAEWOULDBLOCK) { continue; }
+    ///appLog(0,F32,"b tlssend err=%i",error);
+    continue;
+    }
+   totsent+=use;
+   sent += d;
+   }
   data = (void*)((uintptr_t)data + use);
   size -= use;
   }
@@ -39146,6 +39527,138 @@ static const htmlentity_t ent[] =
 
 /*-----------------------------------------------------------------------*/
 
+
+
+ B aaUniLanguageDetect                 (_unigraph*unigraph,VP unistr)
+ {
+ B ret;
+ BP bp;
+ N uidx;
+ H off,count,p,sl,pos,i,u,ul,hex,e;
+ H poses[30];
+ H possl[30];
+ B tok[_1K],ch;
+ B xyz[_32K];
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
+ aaMemoryFill(unigraph,sizeof(_unigraph),0);
+ aaStringCopy(xyz,unistr);
+ bp=(BP)xyz;
+ aaStringLen(bp,&sl);
+ off=0;
+ count=0;
+ for(p=0;p<20;p++)
+  {
+  if((ret=aaStringFindFirstIString(bp,sl,"\\u",2,&pos))!=RET_YES) { break; }
+  poses[p]=off+pos;
+  possl[p]=0;
+  bp+=(pos+2);
+  sl-=(pos+2);
+  off+=(pos+2);
+  count++;
+  if(count>15) { break; }
+  }
+ bp=(BP)xyz;
+ aaStringLen(bp,&sl);
+ for(p=0;p<count;p++)
+  {
+  if((p+1)>=count) { possl[p]=sl-poses[p+0];         }
+  else             { possl[p]=poses[p+1]-poses[p+0]; }
+  }
+ for(i=0;i<count;i++)
+  {
+  aaStringNCopy(tok,&bp[poses[i]],possl[i],YES);
+  ul=possl[i];
+  for(u=0;u<ul;u++)
+   {
+   ch=tok[u];
+   if(u<2) { continue; }
+   if(aaCharIsHex(ch)!=YES) { possl[i]=u; aaStringNCopy(tok,&bp[poses[i]],possl[i],YES);  break;    }
+   }
+  tok[0]='0';
+  tok[1]='x';
+  if((ret=aaStringHexToNumber(tok,0,&hex,0,0,0))!=YES) { oops; break; }
+  if((ret=aaUniFindByVal(&uidx,hex))!=YES) { oops;  continue; }
+//  urp=(_unirange*)&app.uni_range[uidx];
+  for(e=0;e<aaElementCount(unigraph->index);e++)
+   {
+   if(unigraph->index[e]==uidx) {  unigraph->hits[e]++;   break;    }
+   }
+  if(e==aaElementCount(unigraph->index))
+   {
+   for(e=0;e<aaElementCount(unigraph->index);e++)
+    {
+    if(unigraph->hits[e]==0) { unigraph->index[e]=uidx; unigraph->hits[e]++; unigraph->count++;  break; }
+    }
+   if(e==aaElementCount(unigraph->index))  {  aaNote(0,"badir");    }
+   }
+  }
+ return RET_YES;
+ }
+
+
+
+ B aaUniFindByVal                      (NP index,H val)
+ {
+ H i;
+ _unirange*urp;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
+ if(index) { *index=-1; }
+ for(i=0;i<aa.uni_system.uni_range_count;i++)
+  {
+  urp=(_unirange*)&aa.uni_system.uni_range[i];
+  if(val>=urp->first&&val<=urp->last) { if(index) { *index=i; } return RET_YES;   }
+  }
+ return RET_NOTFOUND;
+ }
+
+
+
+
+ B aaUniFindByCc                       (NP index,VP fmt,...)
+ {
+ H i;
+ _unirange*urp;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
+ aaVargsf16K(fmt);
+ if(index) { *index=-1; }
+ for(i=0;i<aa.uni_system.uni_range_count;i++)
+  {
+  urp=(_unirange*)&aa.uni_system.uni_range[i];
+  if(aaStringICompare(urp->cc,str16k.buf,0)==YES) { if(index) { *index=i; } return RET_YES;  }
+  }
+ return RET_NOTFOUND;
+ }
+
+
+
+ B aaUniFindByCat                      (NP index,VP fmt,...)
+ {
+ H i;
+ _unirange*urp;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
+ aaVargsf16K(fmt);
+ if(index) { *index=-1; }
+ for(i=0;i<aa.uni_system.uni_range_count;i++)
+  {
+  urp=(_unirange*)&aa.uni_system.uni_range[i];
+  if(aaStringICompare(urp->cat,str16k.buf,0)==YES) { if(index) { *index=i; } return RET_YES;  }
+  }
+ return RET_NOTFOUND;
+ }
+
+
 /*-----------------------------------------------------------------------*/
 
 
@@ -56230,8 +56743,8 @@ oof;
  if(stringmode) *stringmode=0;
  if((ret=aa_ObjectCheck(aa.net_system.tcpcall_object_id,handle,(VP)&calp,NULL))!=RET_YES) {return ret; }
  ret=aaNetTcpCallStringLook(handle,0,0,0,&off,&len,&mo,maxchars,buf);
- if(chars) *chars=len;
- if(stringmode) *stringmode=mo;
+ if(chars)      { *chars=len;     }
+ if(stringmode) { *stringmode=mo; }
  if(ret!=YES)
   {
   //appLog(0,F32,"call string ret=%i",ret);
@@ -56308,8 +56821,9 @@ oof;
  while(1)
   {
   todo=have-off;
-  if(todo<2) break;
+  if(todo<2) { break; }
   todo=aaNumRoof(todo,atatime);
+  ///appLog(0,F32,"look todo=%i",todo);
   aaNetTcpCallPeek(handle,fromoff+off,todo,tmp);
   mo=0;
   for(k=0;k<todo-1;k++)
@@ -56322,9 +56836,9 @@ oof;
    sl=to-frm;
    if(was_found!=YES)
     {
-    if(offset) *offset=frm;
-    if(chars) *chars=sl;
-    if(stringmode) *stringmode=mo;
+    if(offset)     { *offset=frm;    }
+    if(chars)      { *chars=sl;      }
+    if(stringmode) { *stringmode=mo; }
     }
    if(cnt==index)
     {
@@ -56354,7 +56868,6 @@ oof;
    have=calp->status.rcve_bytes;
    have-=fromoff;
    atatime=aaNumRoof(atatime,have);
-
    if(atatime==prevatatime)  { break; }
    prevatatime=atatime;
    off=cnt=frm=0;
@@ -91750,16 +92263,20 @@ whatever is possible
  #endif
  aaMissingParm(ioque);
  if(ioque->magic!=aaHPP(aaIoqueNew)) { return RET_NOTINITIALIZED; }
- if(who>IOQUE_XMIT)                  { return RET_BADPARM; }
- if(who==IOQUE_RCVE)
+ if(who==IOQUE_RCVE||who=='i'||who=='I'||who=='R'||who=='r')
   {
   if((ret=aaQueWrite(ioque->rcve.handle,bytes,buf))!=YES)  { return ret; }
   }
  else
- if(who==IOQUE_XMIT)
+ if(who==IOQUE_XMIT||who=='o'||who=='O'||who=='X'||who=='x')
   {
   if((ret=aaQueWrite(ioque->xmit.handle,bytes,buf))!=YES)  { return ret; }
   }
+ else
+  {
+  return RET_BADPARM;
+  }
+
  aaQueStatus(ioque->rcve.handle,&ioque->rcve.status);
  aaQueStatus(ioque->xmit.handle,&ioque->xmit.status);
  return RET_YES;
@@ -91775,15 +92292,18 @@ whatever is possible
  #endif
  aaMissingParm(ioque);
  if(ioque->magic!=aaHPP(aaIoqueNew)) { return RET_NOTINITIALIZED; }
- if(who>IOQUE_XMIT)                  { return RET_BADPARM; }
- if(who==IOQUE_RCVE)
+ if(who==IOQUE_RCVE||who=='i'||who=='I'||who=='R'||who=='r')
   {
   if((ret=aaQueRead(ioque->rcve.handle,bytes,buf))!=YES)  { return ret; }
   }
  else
- if(who==IOQUE_XMIT)
+ if(who==IOQUE_XMIT||who=='o'||who=='O'||who=='X'||who=='x')
   {
   if((ret=aaQueRead(ioque->xmit.handle,bytes,buf))!=YES)  { return ret; }
+  }
+ else
+  {
+  return RET_BADPARM;
   }
  aaQueStatus(ioque->rcve.handle,&ioque->rcve.status);
  aaQueStatus(ioque->xmit.handle,&ioque->xmit.status);
@@ -91800,15 +92320,18 @@ whatever is possible
  #endif
  aaMissingParm(ioque);
  if(ioque->magic!=aaHPP(aaIoqueNew)) { return RET_NOTINITIALIZED; }
- if(who>IOQUE_XMIT)                  { return RET_BADPARM; }
- if(who==IOQUE_RCVE)
+ if(who==IOQUE_RCVE||who=='i'||who=='I'||who=='R'||who=='r')
   {
   if((ret=aaQuePeek(ioque->rcve.handle,offset,bytes,buf))!=YES)  { return ret; }
   }
  else
- if(who==IOQUE_XMIT)
+ if(who==IOQUE_XMIT||who=='o'||who=='O'||who=='X'||who=='x')
   {
   if((ret=aaQuePeek(ioque->xmit.handle,offset,bytes,buf))!=YES)  { return ret; }
+  }
+ else
+  {
+  return RET_BADPARM;
   }
  aaQueStatus(ioque->rcve.handle,&ioque->rcve.status);
  aaQueStatus(ioque->xmit.handle,&ioque->xmit.status);
@@ -91825,15 +92348,18 @@ whatever is possible
  #endif
  aaMissingParm(ioque);
  if(ioque->magic!=aaHPP(aaIoqueNew)) { return RET_NOTINITIALIZED; }
- if(who>IOQUE_XMIT)                  { return RET_BADPARM; }
- if(who==IOQUE_RCVE)
+ if(who==IOQUE_RCVE||who=='i'||who=='I'||who=='R'||who=='r')
   {
   if((ret=aaQueDiscard(ioque->rcve.handle,bytes))!=YES)  { return ret; }
   }
  else
- if(who==IOQUE_XMIT)
+ if(who==IOQUE_XMIT||who=='o'||who=='O'||who=='X'||who=='x')
   {
   if((ret=aaQueDiscard(ioque->xmit.handle,bytes))!=YES)  { return ret; }
+  }
+ else
+  {
+  return RET_BADPARM;
   }
  aaQueStatus(ioque->rcve.handle,&ioque->rcve.status);
  aaQueStatus(ioque->xmit.handle,&ioque->xmit.status);
@@ -91855,8 +92381,8 @@ whatever is possible
  #endif
  aaMissingParm(ioque);
  if(ioque->magic!=aaHPP(aaIoqueNew)) { return RET_NOTINITIALIZED; }
- if(who>IOQUE_XMIT)                  { return RET_BADPARM; }
- if(who==IOQUE_RCVE)
+
+ if(who==IOQUE_RCVE||who=='i'||who=='I'||who=='R'||who=='r')
   {
   if(bytes==F32) { bytes=ioque->rcve.status.bytes; }
   if(bytes>ioque->rcve.status.bytes)  { return RET_BOUNDS; }
@@ -91871,7 +92397,7 @@ whatever is possible
    }
   }
  else
- if(who==IOQUE_XMIT)
+ if(who==IOQUE_XMIT||who=='o'||who=='O'||who=='X'||who=='x')
   {
   if(bytes==F32) { bytes=ioque->xmit.status.bytes; }
   if(bytes>ioque->xmit.status.bytes)  { return RET_BOUNDS; }
@@ -91885,6 +92411,11 @@ whatever is possible
    bytes-=todo;
    }
   }
+ else
+  {
+  return RET_BADPARM;
+  }
+
  aaQueStatus(ioque->rcve.handle,&ioque->rcve.status);
  aaQueStatus(ioque->xmit.handle,&ioque->xmit.status);
  return RET_YES;
@@ -92073,7 +92604,12 @@ whatever is possible
     break;
 
     case 10:
-    if(cu.status.is_closed)        { aaDebugf("close %i",__LINE__);   scd->stage=3;     break;     }
+    if(cu.status.is_closed)
+     {
+     //aaDebugf("close %i",__LINE__);
+     scd->stage=3;
+     break;
+     }
     if((ret=aaNetWebsocketYield(&scd->wock))!=YES) { oops;  }
     if(scd->wock.is_failure)       { aaDebugf("line=%i failure a",__LINE__,scd->wock.fail_reason); scd->stage=3;  break;   }
     if(cu.status.ms>=aaSecs(20))   { aaDebugf("stage10 timeout");   scd->stage=3;    break;     }
@@ -92151,12 +92687,14 @@ whatever is possible
      if(bytes>0) { if((ret=aaIoqueWrite(&scd->ioque,IOQUE_RCVE,bytes,the_data))!=YES) { oops; } }
      break;
      }
+
     if(oc==0)     {     break;     }
     if(scd->is_close==0) { scd->is_close=1;      }
     //user_cntr++;
-    binerr_user_cntr++;
+    ///binerr_user_cntr++;
     aaDebugf("a binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
-    ///aaNote(0,"a binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
+
+    aaNote(0,"binerr a binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
     break;
     }
    }

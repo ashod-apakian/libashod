@@ -1960,6 +1960,34 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...);
 
 /*-----------------------------------------------------------------------*/
 
+ structure
+ {
+ B cat[129];
+ B cc[33];
+ H first;
+ H last;
+ H count;
+ }
+ _unirange;
+
+
+ structure
+ {
+ H count;
+ N index[32];
+ H hits[32];
+ }
+ _unigraph;
+
+
+ B aaUniLanguageDetect                 (_unigraph*unigraph,VP unistr);
+ B aaUniFindByVal                      (NP index,H val);
+ B aaUniFindByCc                       (NP index,VP fmt,...);
+ B aaUniFindByCat                      (NP index,VP fmt,...);
+
+
+/*-----------------------------------------------------------------------*/
+
 VP aaf                                (VP buf,H off,VP fmt,...);
 
 /*-----------------------------------------------------------------------*/
@@ -6887,17 +6915,6 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 
 
 /*-----------------------------------------------------------------------*/
-
-/*
- structure
- {
- H tcp_handle;
- _tcpcallstatus tcp_status;
- VP tcp_data;
- }
- _websocketcallunit;
- */
-
 
  structure
  {
