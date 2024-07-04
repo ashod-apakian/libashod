@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2024, Ashot Apakian ver 3064
+// 2008-2024, Ashot Apakian
 /*-----------------------------------------------------------------------*/
  #include "aa.h"
 
@@ -60,7 +60,7 @@ linker options
  H aa_last_line_executed               =__LINE__;
  H aa_user_line_executed               =0;
 
- #define aa_VERSION                    303
+ #define aa_VERSION                    307
 
 /*-----------------------------------------------------------------------*/
 
@@ -2593,6 +2593,7 @@ _output_error:
  Z received;
  Z available;
  Z used;
+ Z err_code;
  SecPkgContext_StreamSizes sizes;
  CtxtHandle context;
  BP decrypted;
@@ -8745,8 +8746,8 @@ fail:
  H tik,ms_el,ms_dif;
  H shr,axs,ats,p,sl;
  HANDLE file_handle;
- B str[_512K];
- B txt[_512K];
+ B str[_384K];
+ B txt[_384K];
  BP tmp,tmp2;
  B path[_1K];
  BOOL b;
@@ -8763,7 +8764,6 @@ fail:
   {
   if((ret=aa_MemoryTemp((VP)&tmp2,_512K,aa_MEMORYTEMP_SystemLogf2))!=RET_YES)   {   return ret;   }
   }
-
  aaFmt(fmt,argptr,tmp);
  if(aa.core_system.master_log_state==NO) { return RET_YES; }
  aaStringLen(tmp,&sl);
@@ -8776,7 +8776,6 @@ fail:
   sl--;
   }
  tmp[sl]=NULL_CHAR;
-
  GetLocalTime(&st);
  if(aa.core_system.master_log_entries==0)
   {
@@ -8797,25 +8796,18 @@ fail:
  aaStringNull(tmp2);
  aaStringNull(&tmp2[_4K]);
  aaStringAppendf(tmp2,"%-6u ",aa.core_system.process_id);
+  #if 1
  aaStringAppendf(tmp2,"%7lu ",ms_el);
+
  if(ms_dif>50) { aaStringAppendf(tmp2,"+%-5lu:",ms_dif); }
  else          { aaStringAppend(tmp2,"      :"); }
  if(style!=(H)-777&&style!=(H)-666&&style!=(H)-555&&style!=(H)-554) { style=(H)-777; }
 
- if(style==(H)-777)
-  {
-  aaStringAppendf(tmp2,"%2i:%02i:%02i %6.2fm/%-3i %3i/%-3i  %s\r\n",st.wHour,st.wMinute,st.wSecond,(F)aa.memory_system.status.bytes_allocated/1048576.0,aa.memory_system.status.blocks_allocated,aa.page_system.pages_allocated,aa.page_system.pages_commited,tmp);
-  }
+ if(style==(H)-777) { aaStringAppendf(tmp2,"%2i:%02i:%02i %6.2fm/%-3i %3i/%-3i  %s\r\n",st.wHour,st.wMinute,st.wSecond,(F)aa.memory_system.status.bytes_allocated/1048576.0,aa.memory_system.status.blocks_allocated,aa.page_system.pages_allocated,aa.page_system.pages_commited,tmp);  }
  else
- if(style==(H)-666)
-  {
-  aaStringAppendf(tmp2,"%s\r\n",tmp);
-  }
+ if(style==(H)-666) { aaStringAppendf(tmp2,"%s\r\n",tmp);  }
  else
- if(style==(H)-555||style==(H)-554)
-  {
-  aaStringCopyf(tmp2,"%s\r\n",tmp);
-  }
+ if(style==(H)-555||style==(H)-554) {  aaStringCopyf(tmp2,"%s\r\n",tmp);  }
  aaStringLen(tmp2,&sl);
  shr=0;
  shr=FILE_SHARE_READ|FILE_SHARE_WRITE;
@@ -8840,6 +8832,7 @@ fail:
   //OutputDebugString((LPCTSTR)tmp2);
   }
  //OutputDebugString((LPCTSTR)tmp2);
+ #endif
  return RET_YES;
  }
 
@@ -11049,6 +11042,46 @@ fail:
  }
 
 
+ HWND GetRealParentOld(HWND hWnd)
+ {
+ HWND hParent;
+ hParent = GetAncestor(hWnd, GA_PARENT);
+ if(!hParent || hParent == GetDesktopWindow())  return NULL;
+ return hParent;
+ }
+
+ HWND GetRealParent(HWND hWnd)
+ {
+ HWND hWndOwner;
+ if (NULL != (hWndOwner = GetWindow(hWnd, GW_OWNER)))     return hWndOwner;
+ // Obtain the parent window and not the owner
+ return GetAncestor(hWnd, GA_PARENT);
+ }
+
+
+ B aaFocusToChrome                     (H wigidx)
+ {
+ HWND cwin;//,chrm;
+ B name[_1K];
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ aaStringCopyf(name,"Chrome_WidgetWin_%i",wigidx);
+ if((cwin=FindWindow((CP)name,NULL))==NULL) { return RET_NOTFOUND; }
+ return(aaFocusToHwnd(cwin));
+ //return(aaFocusToHwnd(GetWindow(cwin,GW_HWNDPREV)));
+// return(aaFocusToHwnd(GetWindow(cwin,GA_PARENT)));
+
+ //return(aaFocusToHwnd(GetRealParent(cwin)));
+
+
+
+
+ ///chrm=GetWindow(cwin,GW_HWNDNEXT);
+ //SetForegroundWindow(chrm);
+ ///return RET_YES;
+ }
+
 
 
  B aaFocusToHwnd                       (HWND hwnd)
@@ -12155,15 +12188,6 @@ fail:
   aa_CoreSystemCpuLoadGet();
   }
 
-  /*
- if(aa_cycle==0)
-  {
-
- if(aa_CoreSystemTimer(aa_COREPREVMS_CpuLoadGet,0,0,100))
-  {
-  aa_CoreSystemCpuLoadGet();
-  }
-  */
   if(aa_cycle==1000)
    {
    aaStringFill(txt,32,BSLASH_CHAR,1);
@@ -12322,7 +12346,7 @@ fail:
  aaStringFromWideString(txt,tzi.StandardName);
  if(txt[0]==NULL_CHAR)  {  aaStringFromWideString(txt,tzi.DaylightName);  }
  aaStringLen(txt,&sl);
- if(sl==0) { aaStringCopyf(txt,"GMT"); }
+ if(sl==0) { aaStringCopy(txt,"GMT"); }
  else
   {
   if(aaStringFindChar(txt,sl,&off,SPACE_CHAR,YES,0,YES)!=YES) { txt[5]=NULL_CHAR; }
@@ -12526,28 +12550,6 @@ fail:
  if(ms>el) { return RET_NO; }
  return RET_YES;
  }
-
-
-
-
- /*
- G aaTickElapsed                       (_tick*tick)
- {
- G ret;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(tick==NULL) { return -1LL; }
- tick->elapsed=aaMsRunning()-tick->ms;
- ret=tick->elapsed;
- return ret;
- }
-
-
-
-
-*/
 
 
 /*-----------------------------------------------------------------------*/
@@ -19264,6 +19266,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    if(aa.object_system.object[id].instance_count==0) { break; }
    if(aa_ObjectCheck((B)id,base+h,NULL,&isprot)==RET_YES)
     {
+    //aaLog(-555,"still %i",base+h);
     if(isprot) { aa_ObjectProtect(id,base+h,NO); }
     if(aa.object_system.object[id].Destructor) { aa.object_system.object[id].Destructor(base+h);   }
     else                                       { aa_ObjectDestroy((B)id,base+h);   }
@@ -19278,6 +19281,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    if(aa.object_system.object[id].instance_count==0) { break; }
    if(aa_ObjectCheck((B)id,base+h,NULL,&isprot)==RET_YES)
     {
+    aaLog(-555,"still %i",base+h);
     if(isprot) { aa_ObjectProtect(id,base+h,NO); }
     if(aa.object_system.object[id].Destructor)   { aa.object_system.object[id].Destructor(base+h);  }
     else                                         { aa_ObjectDestroy((B)id,base+h);   }
@@ -21171,6 +21175,8 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    }
   if((ret=aaQueCreate(&calp->xmit_que))!=RET_YES) {  break; }
   if((ret=aaQueCreate(&calp->rcve_que))!=RET_YES) {  break; }
+  //vaaLog(-555,"line=%i qh=%i",__LINE__,calp->xmit_que);
+  //aaLog(-555,"line=%i qh=%i",__LINE__,calp->rcve_que);
   break;
   }
  if(ret!=RET_YES) { oops; }
@@ -21260,7 +21266,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
  H todo,err,max_todo;
  B temp[_128K];
  Z sent;
-
+ _aa_nettcpcall_tls_ctx*ctx;
 
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
@@ -21363,7 +21369,31 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     {
     ///appLog(0,F32,"tls send %i",todo);
     done=aa_NetTlsSend(mem,temp,todo);
-    if(done<=0) { oof; }
+    if(done<=0)
+     {
+     aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
+     if(ctx->err_code==10035||ctx->err_code==10055)
+      {
+      aaNote(0,"tls slow down");
+      if(calp->is_xmit_slowdown<100) { calp->is_xmit_slowdown++;      }
+      }
+     else
+     if(ctx->err_code==WSAECONNRESET||ctx->err_code==WSAECONNABORTED)
+      {
+      aaNote(0,"tls reset");
+      if(calp->status.is_closed_by_remote!=YES) aaTimerTikGet(&calp->remote_closed_ms_root);
+      calp->status.is_closed_by_remote=YES;
+      }
+     else
+      {
+      aaNote(0,"tls err %i",ctx->err_code);
+      if(calp->status.is_closed_by_remote!=YES) aaTimerTikGet(&calp->remote_closed_ms_root);
+      calp->status.is_closed_by_remote=YES;
+
+      }
+     }
+    else
+    {
     ///appLog(0,F32,"todo=%i done=%i",todo,done);
     sent=done;
     if((ret=aaQueDiscard(calp->xmit_que,sent))!=RET_YES) { aaNote(0,"process tcp done=%i todo=%i sent=%i",done,todo,sent); Boop;return ret; }
@@ -21380,6 +21410,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
      }
     calp->status.xmit_bytes_total+=(Q)(sent);
     aa.net_system.net_status.total_tcp_bytes_out+=(Q)(sent);
+     }
 //    appLog(0,F32,"process tcp %i",__LINE__);
     }
   else
@@ -21980,7 +22011,13 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
     {
     error = WSAGetLastError();
     // Error sending data to socket, or server disconnected.
-    if (error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)  { aaNote(0,"a tlssend err=%i",error); ctx->state = TLS_STATE_UNKNOWN_ERROR; return -1; }
+    if (error != WSAEWOULDBLOCK && error != WSAEINPROGRESS)
+     {
+     //aaNote(0,"a tlssend err=%i",error);
+     ctx->err_code=error;
+     ctx->state = TLS_STATE_UNKNOWN_ERROR;
+     return -1;
+     }
     if (error == WSAEWOULDBLOCK) { continue; }
     ///appLog(0,F32,"b tlssend err=%i",error);
     continue;
@@ -22255,11 +22292,6 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
 
 
 
-
-
-
-
-/*-----------------------------------------------------------------------*/
 /*-----------------------------------------------------------------------*/
 
 
@@ -22463,13 +22495,6 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
 
 
 
-/*
-  if(aa_SurfaceSystemFindSurfaceByHwnd(&sh,NULL,(HWND)wparm)!=YES)
-   {
-   return 1;
-   }
-*/
-
 #if 1
  if(msg==WM_QUIT)
   {
@@ -22489,15 +22514,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    {
    }
   }
-/*
- if(msg==WM_ACTIVATEAPP)
-  {
-  aaDebugf("acti");
-  isin=0;
-  return 0;
-  }
 
-*/
 #endif
 
 // aa_last_line_executed=__LINE__;
@@ -22911,33 +22928,6 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
 
 /*-----------------------------------------------------------------------*/
 
-
-/* http://www.catch22.net/tuts/tips2
-void ForceVisibleDisplay(HWND hwnd)
-{
-    RECT rect;
-    GetWindowRect(hwnd, &rect);
-
-    // check if the specified window-rectangle is visible on any display
-    if(NULL==MonitorFromRect(&rect, MONITOR_DEFAULTTONULL))
-    {
-        HMONITOR hMonitor;
-        MONITORINFO mi = { sizeof(mi) };
-
-        // find the nearest display to the rectangle
-        hMonitor = MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
-
-        GetMonitorInfo(hMonitor, &mi);
-
-        // center window rectangle
-        rect.left = mi.rcWork.left + ((mi.rcWork.right - mi.rcWork.left) - (rect.right-rect.left))/2;
-        rect.top  = mi.rcWork.top  + ((mi.rcWork.bottom - mi.rcWork.top) - (rect.bottom-rect.top))/2;
-
-        SetWindowPos(hwnd, 0, rect.left, rect.top, 0, 0, SWP_NOACTIVATE|SWP_NOZORDER|SWP_NOSIZE);
-    }
-}
-
-*/
 
  B aa_DisplaySystemStart               (V)
  {
@@ -23385,17 +23375,6 @@ void ForceVisibleDisplay(HWND hwnd)
 
 
 
-
-
-/*
-  case aa_PIXELSTYLE_FILL:
-  aaRectSet(&r1,x-pxsz,y-pxsz,pxsz*2,pxsz*2);
-  aaSurfacePixelPutProcGet(sp->self_handle,&proc_save);
-  aaSurfacePixelPutProcSet(sp->self_handle,NULL);
-  aaSurfaceFill(sp->self_handle,&r1,&pa);
-  aaSurfacePixelPutProcSet(sp->self_handle,proc_save);
-  break;
-  */
 
 
 
@@ -25670,8 +25649,6 @@ BP aa_PngToMem                         (BP pixels,B quality,Z stride_bytes,Z x,Z
 
 
 
-/*-----------------------------------------------------------------------*/
-
 
 /*-----------------------------------------------------------------------*/
 
@@ -26833,42 +26810,6 @@ aaInputEngine calls aaInputStateGet
 
  if(ihpp->ihke.msg=='u'|| ihpp->ihke.msg=='d')
   {
-  /*
-  old_is_caps=ihpp->ihke.is_caps;
-  old_is_numl=ihpp->ihke.is_numl;
-  old_is_scrl=ihpp->ihke.is_scrl;
-  old_is_shift=ihpp->ihke.is_shift;
-  old_is_ctrl=ihpp->ihke.is_ctrl;
-  old_is_alt=ihpp->ihke.is_alt;
-  old_is_win=ihpp->ihke.is_win;
-
-  ihpp->ihke.is_caps=NO;
-  ihpp->ihke.is_numl=NO;
-  ihpp->ihke.is_scrl=NO;
-  ihpp->ihke.is_shift=NO;
-  ihpp->ihke.is_ctrl=NO;
-  ihpp->ihke.is_alt=NO;
-  ihpp->ihke.is_win=NO;
-
-  if(ihpp->ihke.msg=='u')
-   {
-   ihpp->k=GetKeyState(VK_CAPITAL);  if(aaBitGet(ihpp->k,0))  ihpp->ihke.is_caps=YES;
-   ihpp->k=GetKeyState(VK_NUMLOCK);  if(aaBitGet(ihpp->k,0))  ihpp->ihke.is_numl=YES;
-   ihpp->k=GetKeyState(VK_SCROLL);   if(aaBitGet(ihpp->k,0))  ihpp->ihke.is_scrl=YES;
-   ihpp->k=GetKeyState(VK_SHIFT);    if(aaBitGet(ihpp->k,15)) ihpp->ihke.is_shift=YES;
-   ihpp->k=GetKeyState(VK_CONTROL);  if(aaBitGet(ihpp->k,15)) ihpp->ihke.is_ctrl=YES;
-   ihpp->k=GetKeyState(VK_MENU);     if(aaBitGet(ihpp->k,15)) ihpp->ihke.is_alt=YES;
-   ihpp->k=GetKeyState(VK_LWIN);     if(aaBitGet(ihpp->k,15)) ihpp->ihke.is_win=YES;
-   }
-
-  if(old_is_caps||ihpp->ihke.is_caps)   {  aaDebugf("is_caps=%i  %i  %c",ihpp->ihke.is_caps,old_is_caps,ihpp->ihke.msg);   }
-  if(old_is_numl||ihpp->ihke.is_numl)   {  aaDebugf("is_numl=%i  %i  %c",ihpp->ihke.is_numl,old_is_numl,ihpp->ihke.msg);   }
-  if(old_is_scrl||ihpp->ihke.is_scrl)   {  aaDebugf("is_scrl=%i  %i  %c",ihpp->ihke.is_scrl,old_is_scrl,ihpp->ihke.msg);   }
-  if(old_is_shift||ihpp->ihke.is_shift) {  aaDebugf("is_shift=%i  %i  %c",ihpp->ihke.is_shift,old_is_shift,ihpp->ihke.msg);   }
-  if(old_is_ctrl||ihpp->ihke.is_ctrl)   {  aaDebugf("is_ctrl=%i  %i  %c",ihpp->ihke.is_ctrl,old_is_ctrl,ihpp->ihke.msg);   }
-  if(old_is_alt||ihpp->ihke.is_alt)     {  aaDebugf("is_alt=%i  %i  %c",ihpp->ihke.is_alt,old_is_alt,ihpp->ihke.msg);   }
-  if(old_is_win||ihpp->ihke.is_win)     {  aaDebugf("is_win=%i  %i  %c",ihpp->ihke.is_win,old_is_win,ihpp->ihke.msg);   }
-  */
   }
 
 
@@ -32919,35 +32860,6 @@ else
 /*-----------------------------------------------------------------------*/
 
 
-/*
- B aa_StrSpaceNeed                     (_str*str,H need)
- {
- B ret;
- H take,give;
-
- if(str==NULL) { return RET_BADPARM; }
- take=need+32;
- if(take>str->space)
-  {
-  give=(str->space/4)+take;
-  if(str->bp!=(BP)str->buf)
-   {
-   ret=aaMemoryReAllocate((VP)&str->bp,give);
-   }
-  else
-   {
-   ret=aaMemoryAllocate((VP)&str->bp,give);
-   aaMemoryNameSet((VP)str->bp,"_str");
-   }
-  if(ret!=YES) { oops; }
-  str->space=give;
-  }
- return RET_YES;
- }
-
-*/
-
-
 
  B aaStrNew                            (_str*str,VP fmt,...)
  {
@@ -33097,25 +33009,6 @@ else
  }
 
 
-
-
-/*
- B aaStrAppendf                        (_str*str,VP fmt,...)
- {
- B txt[_4K];
- H sl;
- va_list argptr;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(str==NULL) { return RET_BADPARM; }
- aaFmt(fmt,argptr,txt);
- aaStringLen(txt,&sl);
- return(aaStrNCopy(str,txt,sl,YES));
- }
-
-*/
 
 /*-----------------------------------------------------------------------*/
 
@@ -33788,16 +33681,6 @@ else
  #ifdef aa_VERSION
  aa_CPAG(__FUNCTION__);
  #endif
- /*
- if(aa.is_ready==YES)
-  {
-  if((ret=aa_MemoryTemp((VP)&tmp,_512K,aa_MEMORYTEMP_StrAppendf))!=RET_YES) { oops; return ret; }
-  }
- else
-  {
-  aaCast(tmp,BP,temp);
-  }
- */
  aaCast(tmp,BP,temp);
  aaFmt(fmt,argptr,tmp);
  if(dst==NULL)   {  return RET_BADPARM;  }
@@ -33921,11 +33804,6 @@ else
  }
 
 
-
-
-/*e.g
-aaStringAppendCopyf(txt,0,"%-25s ","aa_stage=%u",aa_stage);
-*/
 
 
  B aaStringAppendCopyf                 (VP dst,HP chars,VP afmt,VP fmt,...)
@@ -35714,13 +35592,6 @@ aaStringAppendCopyf(txt,0,"%-25s ","aa_stage=%u",aa_stage);
  return RET_YES;
  }
 
-
- /*
- aaStringFromBinary(str,0,32,4,1,&em);
- aaDebugf("       0    4    8   12   16   20   24   28   " );
- aaDebugf("       +----+----+----+----+----+----+----+---" );
- aaDebugf("bits:  %s",str);
- */
 
 
 
@@ -39495,6 +39366,26 @@ static const htmlentity_t ent[] =
 
 
 
+
+ B aaStringSizeHumanize                (VP str,G val)
+ {
+ D v;
+ while(1)
+  {
+  v=val;
+  if(val<1024)       { aaStringCopyf(str,"%.0f",v); break; }
+  v=val/1048576.0;
+  if(val<1048576)    { aaStringCopyf(str,"%.1fKb",v); break; }
+  v=val/1073741824.0;
+  if(val<1073741824) { aaStringCopyf(str,"%.1fMb",v); break; }
+  v=val/1073741824000.0;
+  aaStringCopyf(str,"%.1fGb",v);
+  break;
+  }
+ return RET_YES;
+ }
+
+
 /*-----------------------------------------------------------------------*/
 
 
@@ -40533,9 +40424,6 @@ soff=moff=stage=0;
  return RET_YES;
  }
 
-
-
-/*-----------------------------------------------------------------------*/
 
 
 
@@ -43467,26 +43355,6 @@ soff=moff=stage=0;
 /*-----------------------------------------------------------------------*/
 
 
-/*
- B aaThreadProc                        (H handle)
- {
- B ret;
- _threadunit tu;
-
- tu.handle=handle;
- while(1)
-  {
-  if((ret=aaThreadStatus(tu.handle,&tu.status))!=YES) { oops; return ret; }
-  if(is_aa_quit_posted)    { break; }
-  if(tu.status.is_exiting) { break; }
-  aaSleep(1);
-  }
- return RET_YES;
- }
-
-*/
-
-
 
  H aa_ThreadRelay                      (VP parm)
  {
@@ -43535,18 +43403,6 @@ soff=moff=stage=0;
   {
   thrp->handle=CreateThread(NULL,0,(LPTHREAD_START_ROUTINE)proc,(VP)*handle,0,&thrp->id);
   }
- /*
- //SetThreadAffinityMask(thrp->handle,1<<rand()%5);
- logg("thread created");
- if(startpaused!=YES)
-  {
-  logg("Initializing thread to Unpause");
-  if((ret=aaThreadPause(*handle,NO))!=YES)
-   {
-   logg("holy crap %i",ret);
-   }
-  }
-  */
  logg("ThreadCreate success");
  return RET_YES;
  }
@@ -45346,7 +45202,7 @@ soff=moff=stage=0;
  aa.math_system.ten_million=(D)10000000;
  aa.math_system.dct_iclip_ptr=aa.math_system.dct_iclip+512;
  for(i=-512;i<512; i++) { aa.math_system.dct_iclip_ptr[i]=(I)aaNumClamp(i,-256,255); }
- aaStringCopyf(txt,"%s","pmmzech");
+ aaStringCopy(txt,"pmmzech");
  key[0]=(H)&txt;
  #ifdef IS_A_DLL
  key[0]+=(H)(PP)DllMain;
@@ -45450,19 +45306,6 @@ soff=moff=stage=0;
  }
 
 /*-----------------------------------------------------------------------*/
-
-
-/*
-double  to_degrees(double radians) {    return radians*(180.0/M_PI);}
-
-
-#define degreesToRadians(angleDegrees) (angleDegrees*M_PI/180.0)
-
-#define radiansToDegrees(angleRadians) (angleRadians*180.0/M_PI)
-
-
-private static double calculateDirection(double x, double y){    return Math.toDegrees(Math.atan2(y, x));}
-*/
 
 
  B aaMathDct                           (IP block,B fwd,B descale)
@@ -45664,79 +45507,6 @@ private static double calculateDirection(double x, double y){    return Math.toD
 
 
 
-#if 0
- B aaMathSinTableCreate                (FP table,B conv)
- {
- F the,rad,a;
- D s;
- W z;
- //FP ptr;
- //BP mem;
- //B ret;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(table==NULL) return RET_BADPARM;
- //if((ret=aaMemoryAllocate((VP)&mem,3600*sizeof(F)))!=RET_YES) { return ret; }
- //aaMemoryNameSet(mem,"sintable");
- //aaCast(ptr,FP,mem);
- a=0;
- for(z=0;z<3600;z++)
-  {
-  the=(F)a;
-  if(conv) { rad=(the*aaPi)/180.0; }
-  else     { rad=the; }
-  s=sin(rad);
-  table[z]=(F)s;
-  //ptr[z]=(F)s;
-  a+=0.1;
-  }
- //*table=ptr;
- return RET_YES;
- }
-
-
-
-
-
-
-
- B aaMathCosTableCreate                (FP table,B conv)
- {
- F the,rad,a;
- D s;
- W z;
- //FP ptr;
- //BP mem;
- //B ret;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(table==NULL) return RET_BADPARM;
- //if((ret=aaMemoryAllocate((VP)&mem,3600*sizeof(F)))!=RET_YES) { return ret; }
- //aaMemoryNameSet(mem,"costable");
- //aaCast(ptr,FP,mem);
- a=0;
- for(z=0;z<3600;z++)
-  {
-  the=(F)a;
-  if(conv) { rad=(the*aaPi)/180.0; }
-  else     { rad=the; }
-  s=cos(rad);
-  //ptr[z]=(F)s;
-  table[z]=(F)s;
-  a+=0.1;
-  }
- //*table=ptr;
- return RET_YES;
- }
-
-#endif
-
-
-
  B aaMathDtmfSet                       (H samples,_audiomode*audiomode,N amp,B code,VP buf)
  {
  S N dtmf_tone[17][2]=
@@ -45807,37 +45577,6 @@ private static double calculateDirection(double x, double y){    return Math.toD
 
 
 
-/*
-
-<<< http://gis.stackexchange.com/questions/8650/how-to-measure-the-accuracy-of-latitude-and-longitude
-http://www.longitudestore.com/how-big-is-one-gps-degree.html
-http://msi.nga.mil/MSISiteContent/StaticFiles/Calculators/degree.html
-https://www.maptools.com/tutorials/lat_lon/formats
-https://knowledge.safe.com/articles/725/calculating-accurate-length-in-meters-for-lat-long.html
-http://stackoverflow.com/questions/639695/how-to-convert-latitude-or-longitude-to-meters
-
-
-function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement function
-    var R=6378.137; // Radius of earth in KM
-    var dLat=(lat2 - lat1)*Math.PI/180;
-    var dLon=(lon2 - lon1)*Math.PI/180;
-    var a=Math.sin(dLat/2)*Math.sin(dLat/2) +
-    Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180) *
-    Math.sin(dLon/2)*Math.sin(dLon/2);
-    var c=2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    var d=R*c;
-    return d*1000; // meters
-}
-*/
-
-
- /*
- (((acos(sin(($lat*pi()/180))*sin((latitude*pi()/180)) cos(($lat*pi()/180))*cos((latitude*pi()/180))*cos((($lng - longitude)*pi()/180))))*180/pi())*60*1.1515)
- */
-
-
- // lat=-90/+90  lon=-180/+180
-
 
  B aaMathLatLongDistanceGet            (D lat1,D lon1,D lat2,D lon2,DP distance)
  {
@@ -45897,43 +45636,6 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
  cord->y=aaNumClamp((N)y,0,(N)(size->h-1));
  return RET_YES;
  }
-
-/*
- B aaMathLatLongCordGet                (D lat,D lon,_size*size,_cord*cord)
- {
- D mw,mh;
- D mlonl,mlonr,mlond;
- D mlatb,mlatbd;
- D wmw,moy;
- D x,y;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(cord==NULL) { return RET_BADPARM; }
- cord->x=cord->y=0;
- if(size==NULL) { return RET_BADPARM; }
- if(size->w==0||size->h==0) { return RET_BADPARM; }
- mw=(D)size->w;
- mh=(D)size->h;
- mlonl=-180.0;
- mlonr=+180.0;
- mlond=mlonr-mlonl;
- mlatb=40.1700;
- mlatbd=mlatb*aaPi/180.0;
- x=(lon-mlonl)*(mw/mlond);
- lat=lat*aaPi/180.0;
- wmw=((mw/mlond)*360.0)/(2.0*aaPi);
- moy=(wmw/2.0*log((1.0+sin(mlatbd))/(1.0-sin(mlatbd))));
- y=mh-((wmw/2.0*log((1.0+sin(lat))/(1.0-sin(lat))))-moy);
- cord->x=aaNumClamp((N)x,0,(N)(size->w-1));
- cord->y=aaNumClamp((N)y,0,(N)(size->h-1));
- return RET_YES;
- }
-*/
-
-
-
 
 
 
@@ -46194,43 +45896,6 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
 
 
 
-
-/**
-   aaRectSet(&r1,200,200,300,300);
-   aaSurfaceFill(app.splash.handle,&r1,&col_red[1]);
-   aaRectExpand(&r1,-10,-10);
-   aaRectCordCenterGet(&r1,&c1);
-
-   gettimeofday(&tv,0);
-   t=localtime(&tv.tv_sec);
-
-   s=t->tm_hour%12;
-   aaRectExpand(&r1,-30,-30);
-   aaMathAngleToCord((D)s*30.0,&r1,&c2);
-   aaSurfaceArrow(app.splash.handle,&c2,&c1,0,5,20,45,&col_cyan[20],&col_green[30]);
-   aaRectExpand(&r1,+30,+30);
-
-   s=t->tm_min;
-   aaRectExpand(&r1,-5,-5);
-   aaMathAngleToCord((D)s*6.0,&r1,&c2);
-   aaSurfaceArrow(app.splash.handle,&c2,&c1,0,5,20,45,&col_red[30],&col_yellow[30]);
-   aaRectExpand(&r1,+5,+5);
-
-   s=t->tm_sec;
-   aaRectExpand(&r1,-10,-10);
-   aaMathAngleToCord((D)s*6.0,&r1,&c2);
-   aaSurfaceArrow(app.splash.handle,&c2,&c1,0,2,20,45,&col_red[30],&col_red[25]);
-   aaRectExpand(&r1,+10,+10);
-
-   s=(aa_msrunning%1000);
-   aaRectExpand(&r1,-15,-15);
-   aaMathAngleToCord((D)s*0.36,&r1,&c2);
-   aaSurfaceArrow(app.splash.handle,&c2,&c1,0,1,20,45,&col_blue[30],&col_purple[30]);
-   aaRectExpand(&r1,+15,+15);
-
-   aaSurfaceUpdateAreaAdd(app.splash.handle,0,0);
-   aaSurfaceStatus(app.splash.handle,&app.splash.status);
-*/
 
  B aaMathCirclesToVectorCords          (_rect*srect,_rect*trect,_cord*cord1,_cord*cord2)
  {
@@ -46991,7 +46656,6 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
  extra_bytes_required=bytes-bytes_available;
  extra_pages_required=extra_bytes_required/aa.page_system.bytes_per_page;
  if((extra_bytes_required%aa.page_system.bytes_per_page)!=0) { extra_pages_required++; }
-
  if(extra_pages_required)
   {
   logg("Que handle %i, requires %i more pages",handle,extra_pages_required);
@@ -48313,6 +47977,8 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
  #endif
  return(aaMiniStackPeek(ministack,offset,2,val));
  }
+
+
  B aaMiniStackPeekDword                (_ministack*ministack,H offset,HP val)
  {
  #ifdef aa_VERSION
@@ -48543,36 +48209,6 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
     }
    }
 
-   #if 0
- if(getgateway)
-  {
-  for(k=0;k<aaElementCount(localip->ip);k++)
-   {
-   for(i=0;i<ni.adapter_count;i++)
-     {
-     for(j=0;j<ni.adapter[i].address_count;j++)
-      {
-      if(ni.adapter[i].gateway!=0)
-       {
-       if(ni.adapter[i].address[j].ip==localip->ip[k])
-        {
-        if(localip->ip[k]!=0)
-         {
-         localip->gateway_ip[k]=ni.adapter[i].gateway;
-         aaStringCopy(localip->gateway_dot,ni.adapter[i].gateway_dot);
-         /*
-         aaNetSubnetFromIp(&net_subnet[k],localip->ip[k],ni.adapter[i].address[j].subnet);
-         localip->bcast_ip[k]=net_subnet[k].broadcast_ip;
-         aaNetIpToString(localip->bcast_ip[k],localip->bcast_dot[k]);
-         */
-         }
-        }
-       }
-      }
-     }
-    }
-   }
-#endif
 
  return RET_YES;
  }
@@ -49624,7 +49260,6 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
   tr.is_initialized=YES;
   tr.line_count=0;
   }
-
  if(index==F32) { index=tr.line_count; }
  else
   {
@@ -51336,14 +50971,14 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
    if(ret!=RET_YES) { stage=F32; break; }
    if(which==0) /// https://
     {
-    aaStringCopyf(url->scheme,"https");
+    aaStringCopy(url->scheme,"https");
     aaParserSeek(&pa,8);
     stage=URL_PARSE_Host_Init;
     break;
     }
    if(which==1) /// http://
     {
-    aaStringCopyf(url->scheme,"http");
+    aaStringCopy(url->scheme,"http");
     aaParserSeek(&pa,7);
     stage=URL_PARSE_Host_Init;
     break;
@@ -51728,42 +51363,6 @@ function measure(lat1, lon1, lat2, lon2){  // generally used geo measurement fun
 
 
 
-
-/*
-
- B aaNetUrlBuild                       (VP urli,VP href,VP urlo)
- {
- B pre[_4K];
- B etc[_4K];
- B out[_4K];
- _url uze[2];
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(href==NULL) { return RET_MISSINGPARM; }
- aaStringCopyf(pre,"%s",href);
- aaNetUrlParse(&uze[0],pre);
- aaNetUrlParse(&uze[1],urli);
- if(pre[0]=='#')      {      }
- if(aaStringIsEmpty(uze[0].scheme,1)) { aaStringCopy(uze[0].scheme,uze[1].scheme);      }
- if(aaStringIsEmpty(uze[0].host,1))   { aaStringCopy(uze[0].host,uze[1].host);      }
- if(aaStringIsEmpty(uze[0].path,1))   { aaStringCopy(uze[0].path,uze[1].path);      }
- aaStringNull(etc);
- aaStringAppendf(etc,"%s://",uze[0].scheme);
- aaStringAppendf(etc,"%s",uze[0].host);
- aaStringAppendf(etc,"%s",uze[0].path);
- aaStringAppendf(etc,"%s",uze[0].file);
- if(uze[0].query[0]) aaStringAppendf(etc,"?%s",uze[0].query);
- if(uze[0].frag[0])  aaStringAppendf(etc,"#%s",uze[0].frag);
- //ret=myNetUrlClean(etc,0,out);
- //if(ret!=RET_YES) { oops; }
- if(urlo) { aaStringCopyf(urlo,"%s",out); }
- return RET_YES;
- }
-
-
-*/
 
  B aaNetUrlBeginsWith                  (VP urli,NP which)
  {
@@ -53541,14 +53140,6 @@ oof;
   if(str16k.buf[0]==NULL_CHAR) { return RET_MISSINGPARM; }
   aaStringCopyf(websocket->url,"%s",str16k.buf);
   }
- /*
- if(str4k.buf[0]!=NULL_CHAR)
-  {
-  aaStringCopyf(websocket->url,"%s",str4k.buf);
-  aaStringReplaceChar(websocket->url,0,32,'+');
-  //if((ret=aaNetUrlPartsGet(&websocket->up,websocket->url,YES,YES))!=YES) { oops; }
-  }
- */
  websocket->stage=WEBSOCKET_STAGE_HANDSHAKE;
  return RET_YES;
  }
@@ -53572,7 +53163,7 @@ oof;
 // _digestunit dig;
  B asca,ascb;
  H chars;
- H ita=16; //cock was 4, was 1
+ H ita=8; //cock was 4, was 1
 
 
  #ifdef aa_VERSION
@@ -53651,20 +53242,6 @@ oof;
       if(chars>510) { aaNote(0,"chars=%i %s = %s",chars,hed.field,hed.data); }
       aaStringCopyf(websocket->ua,"%s",hed.data);
       }
-     /*
-     else
-     if(hed.field_code==aa_HTTPFIELD_BLANK||hed.field_code==aa_HTTPFIELD_PRAGMA||
-        hed.field_code==aa_HTTPFIELD_CONNECTION||hed.field_code==aa_HTTPFIELD_ACCEPTENCODING||
-        hed.field_code==aa_HTTPFIELD_CACHECONTROL||hed.field_code==aa_HTTPFIELD_COOKIE||
-        hed.field_code==aa_HTTPFIELD_ORIGIN)
-      {
-      }
-
-     else
-      {
-      aaCustomLog("%s=%s",hed.field,hed.data);
-      }
-     */
 
      if(aaStringICompare(hed.field,"sec-websocket-key",0)==YES)
       {
@@ -53803,100 +53380,6 @@ oof;
 
 
 
-#if 0
-
- B aaNetWebsocketWrite                 (_websocket*websocket,B opcode,B finflag,H bytes,VP data)
- {
- B ret;
- _tcpcallstatus cs;
- H mask,i,j,off,len,todo;
- H pktbytes,pktdone;
- Q qlen;
- B buf[_512K];
- BP mbp,bp;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if(websocket==NULL) { return RET_MISSINGPARM; }
- if(websocket->magic!=aaHPP(aaNetWebsocketInit)) { return RET_NOTINITIALIZED; }
- if(websocket->stage!=WEBSOCKET_STAGE_OPEN)      { return RET_BADSTATE; }
- if(websocket->is_close_sent==YES)               { return RET_NOTOPEN;  }
- if(opcode>15)                                   { return RET_BADPARM; }
- if(bytes==0&&data!=NULL&&opcode==WEBSOCKET_OPCODE_TEXT)    {  aaStringLen(data,&bytes);  }
- if(bytes==0&&data!=NULL&&opcode==WEBSOCKET_OPCODE_BINARY)  {  aaStringLen(data,&bytes);  }
- mbp=NULL;
- aaMemoryRandomDwordSet(&mask,0x00000001,0xfffffffe);
- i=opcode;
- if(finflag) { i=aaBitSet(i,7); }
- else        { i=aaBitClr(i,7); }
- buf[0]=(B)i;
- if(bytes<=125)
-  {
-  j=bytes;
-  if(websocket->is_incoming==NO) { j=aaBitSet(j,7); }
-  buf[1]=(B)j;
-  off=2;
-  }
- else
- if(bytes>=126&&bytes<=65536)
-  {
-  j=126;
-  if(websocket->is_incoming==NO) { j=aaBitSet(j,7); }
-  buf[1]=(B)j;
-  j=aaNumSwapWord(bytes);
-  *(WP)&buf[2]=j;
-  off=4;
-  }
- else
-  {
-  j=127;
-  if(websocket->is_incoming==NO) { j=aaBitSet(j,7); }
-  buf[1]=(B)j;
-  qlen=bytes;
-  *(QP)&buf[2]=qlen;
-  bp=(BP)&buf[2];
-  qlen=*(QP)&bp[0];;    qlen=aaNumSwapQuad(qlen);    *(QP)&bp[0]=qlen;
-  len=*(HP)&bp[0];       len=aaNumSwapDword(len);    *(HP)&bp[0]=len;
-  len=*(HP)&bp[4];       len=aaNumSwapDword(len);    *(HP)&bp[4]=len;
-  off=10;
-  }
- if(websocket->is_incoming==NO)
-  {
-  *(HP)&buf[off]=mask;
-  aaCast(mbp,BP,&mask);
-  off+=4;
-  }
- pktdone=0;
- pktbytes=off+bytes;
- aaNetTcpCallWrite(websocket->tcp_handle,off,buf);
- pktdone+=off;
- j=0;
- aaCast(bp,BP,data);
- while(1)
-  {
-  todo=pktbytes-pktdone;
-  if(todo==0) break;
-  todo=aaNumRoof(todo,_2K);
-  if(websocket->is_incoming==NO)
-   {
-   for(i=0;i<todo;i++) { buf[i]=bp[j]^mbp[j%4]; j++; }
-   }
-  else
-   {
-   for(i=0;i<todo;i++) { buf[i]=bp[j]; j++; }
-   }
-  aaNetTcpCallWrite(websocket->tcp_handle,todo,buf);
-  pktdone+=todo;
-  }
- websocket->xmit_pkts_total++;
- if((ret=aaNetTcpCallStatus(websocket->tcp_handle,&cs))!=YES) { return ret; }
- return RET_YES;
- }
-
-#else
-
-
  B aaNetWebsocketWrite                 (_websocket*websocket,B opcode,B finflag,H bytes,VP data)
  {
  B ret;
@@ -53991,8 +53474,6 @@ oof;
  return RET_YES;
  }
 
-
-#endif
 
 
 
@@ -54961,16 +54442,6 @@ oof;
  #endif
  if(handle) { *handle=0; }
 
- /*
- aaNetLocalIpGet(&locip,NO,NO,NO);
- for(i=0;i<4;i++)
-  {
-  if(locip.type[i]!='P') { continue; }
-  break;
-  }
- if(i==4) { return RET_FAILED; }
- myip=locip.ip[i];
- */
  myip=aa.net_system.source_ip;
  if(serverport==0) { serverport=3478; }
  if(serverip==0) { oof; return RET_BADPARM; }
@@ -56195,13 +55666,6 @@ oof;
    ret=RET_FAILED;
    break;
    }
-/*
-  if(error==SOCKET_ERROR)
-   {
-   error=WSAGetLastError();
-   if(error == WSAENOBUFS||error!=WSAEWOULDBLOCK)     {     ret=RET_FAILED;     break;     }
-   }
-   */
   if((ret=aaQueCreate(&calp->xmit_que))!=RET_YES) {  break; }
   if((ret=aaQueCreate(&calp->rcve_que))!=RET_YES) {  break; }
   break;
@@ -61977,54 +61441,6 @@ oof;
 
 
 
-/*
- B aaTorKill                           (_tor*tor,H index)
- {
- B ret;
- H i,c;
- _torprocess*tep;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- objTest(tor,aaTorNew);
- if(index!=F32&&index>=tor->process_count) { return RET_BOUNDS; }
- if(index!=F32)
-  {
-  tep=(_torprocess*)&tor->process[index];
-  if(tep->pid==0)    { return RET_NOTFOUND; }
-  if(tep->c_port==0) { return RET_NOTFOUND; }
-  if(tep->s_port==0) { return RET_NOTFOUND; }
-  if(tep->is_killing!=YES)
-   {
-   tep->is_killing=YES;
-   if((ret=aaProcessTerminateByPid(tep->pid,0))!=YES) { }//oops;  return RET_NOTREADY;  }
-   }
-  }
- else
-  {
-  c=0;
-  for(i=0;i<tor->process_slots;i++)
-   {
-   if(c>=tor->process_count) { break; }
-   tep=(_torprocess*)&tor->process[i];
-   if(tep->pid==0)    { continue; }
-   if(tep->c_port==0) { continue; }
-   if(tep->s_port==0) { continue; }
-   c++;
-   if(tep->is_killing!=YES)
-    {
-    tep->is_killing=YES;
-    if((ret=aaProcessTerminateByPid(tep->pid,0))!=YES) { }//oops;  return RET_NOTREADY;  }
-    }
-   }
-  }
- //if((ret=aa_TorSnapshot(tor))!=YES) { oops; }
- return RET_YES;
- }
-
-*/
-
 
 //TASKKILL /F /IM tor.exe /T
 
@@ -65886,20 +65302,6 @@ else
 //  aaDebugf("%i,%i,%i,%i",aaRectParts(rc1));
   aaRectCopy(&surp->status.last_rect_max,&rc1);
   //aaRectCopy(&rc1,&surp->status.last_rect_max);
-  /*
-  if(rc1.w==0||rc1.h==0)
-   {
-   aaSizeCopy(&sz1,&surp->status.max_size);
-   aaRectSet(&rc1,0,0,sz1.w,sz1.h);
-   aaRectCopy(&surp->status.last_rect_max,&rc1);
-   aaSurfaceRectSet(handle,&rc1);
-   aaSurfaceCenter(handle,0);
-   }
-  else
-   {
-   aaSurfaceRectSet(handle,&rc1);
-   }
-   */
   //aaDebugf("abouto rect set %i,%i,%i,%i",aaRectParts(rc1));
   aaSurfaceRectSet(handle,&rc1);
   surp->status.is_maximized=YES;
@@ -66352,12 +65754,6 @@ else
 
 
 
-
-
- /*
-   #define LWA_COLORKEY 0x00000001
-   #define LWA_ALPHA 0x00000002
- */
 
 
 
@@ -67314,6 +66710,7 @@ else
   surp->status.is_top=YES;
   }
  else
+ //if(state==NO)
   {
   if(surp->status.is_top==NO) { return RET_YES; }
   if(SetWindowPos(surp->status.hwnd,HWND_NOTOPMOST,0,0,0,0,SWP_NOSIZE|SWP_NOMOVE)==0) { return RET_FAILED; }
@@ -68527,14 +67924,6 @@ noscale:
  else         { aaRgbaCopy(&pn,p1); }
  if(rect==NULL) { x=0;       y=0;       w=surp->status.size.w; h=surp->status.size.h; }
  else           { x=rect->x; y=rect->y; w=rect->w;             h=rect->h;             }
- /*
- if(x!=0||((w-x)!=surp->status.size.w))
-  {
-  aaRectSet(&r1,x,y,w,h);
-  aaDebugf("%i,%i,%i,%i ",aaRectParts(r1));
-  return(aaSurfaceFill(handle,&r1,&pn));
-  }
- */
  dwrd=*(HP)&pn;
  quad=(Q)dwrd;
  quad=quad<<32LL;
@@ -70933,29 +70322,6 @@ noscale:
 
 
 
- // output_handle ,, needs to be integrated back to input handle
-
-//F mat[9]= {-1, -2, -1,-2, 20, -2,	-1, -2, -1    }; // sharpen
-//F mat[9]={-1, -2, 0,	-2, 0, 2,	0, 2, 1 }; // edge
-//F mat[9]={-1, -2, 0,	-2, 0, 2,	0, 2, 1 }; // base ( neeed to use p1 arg )
-//F mat[9]={ 0, -1, 0,	-1, 5,-1,	0,-1, 0 }; // sharpen
-//F mat[9]={ 1,  2, 1,	 2, 4, 2,	1, 2, 1 }; // gausian blur
-
-/*
- F mat[9]={-1, -2, -1,   -2, 20, -2,	-1, -2, -1 }; // sharpen
- F mat[9]={14, 15,16,	24,25,26,	34,35,36   }; // smooth
- F mat[9]={ 0,  0, 0,	-1, 1, 0, 	 0, 0, 0   }; // edgeenhance
- F mat[9]={ 0,  1, 0,	 1,-4, 1, 	 0, 1, 0   }; // edgedetect
- F mat[9]={-1, -2, 0,	-2, 0, 2, 	 0, 2, 1   }; // edge
- F mat[9]={-1, -2, 0,	-2, 0, 2,	 0, 2, 1   }; // base ( neeed to use p1 arg )
- F mat[9]={ 0, -1, 0,	-1, 5,-1,	 0,-1, 0   }; // sharpen
- F mat[9]={ 1,  1, 1,	 1,  2, 1,	 1, 1, 1   }; // smudge
- F mat[9]={ 2,  2, 1,	 2, 4, 4,	-1, 4, 3   }; // smudge
- F mat[9]={ 1,  2, 1,	 2, 4, 2,	 1, 2, 1   }; // gausian blur
- F mat[9]={-2, -1, 0,	-1, 1, 1,	 0, 1, 2   }; // emboss
-
-*/
-
  B aaSurfaceConvolve                   (H handle,_rect*rect,FP matrix,N n,_rgba*p1,B absflag)
  {
  B ret;
@@ -71073,15 +70439,6 @@ noscale:
  }
 
 
- /*
- gradient rules:
- type 0=linear   scale=(-5.0 to +0.5=spread )                            tilt=tilt (0-90 )
- type 1=radial   scale=(-5.0 to +0.5=spread )                            tilt=tilt
- type 2=square   scale=(-5.0 to +0.5=spread, >+0.5 is reversed )         tilt=tilt
- type 3=conict   scale=(-5.0 to +0.5=spread, >+0.5 is reversed )         tilt=( not used )
- */
-
-
 
 
  B aaSurfaceGradientFill               (H handle,_rect*rect,_cord*c1,_rgba*p1,_rgba*p2,B type,F tilt)
@@ -71130,31 +70487,6 @@ noscale:
    }
   cs=cos(tilt*(aaPi/180.0)); /* For rotation of coords */
   sn=sin(tilt*(aaPi/180.0));
-
-
- /*
-  if(tilt==90) { s=wid; }
-  else
-   {
-   ang=tan(tilt*(aaPi/180.0));
-   s=aaNumAbs(ang*wid+(ang<0?(-(N)hit):(N)hit))/sqrt(ang*ang+1);
-   }
-  ang=tan(tilt*(aaPi/180.0));
-  s=aaNumAbs(ang*wid+(N)hit)/sqrt(ang*ang+1);
-  //tilt=ang;
-  cs=cos(tilt*(aaPi/180.0));
-  sn=sin(tilt*(aaPi/180.0));
-  */
-
-/*
-  deg=tilt*aaPi/180.0;
-  s=aaNumAbs(deg*(wid/2)+(N)(hit/2))/(sqrt(deg*deg)+1.0);
-  cs=cos(tilt*(aaPi/180.0));
-  sn=sin(tilt*(aaPi/180.0));
-  */
-
-//  cs=cos(deg);//
-//  sn=sin(deg);//
 
 
   ok=0;
@@ -71391,14 +70723,6 @@ noscale:
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.surface_system.object_id,handle,(VP)&surp,NULL))!=RET_YES) { return ret; }
- /*
- if(surp->status.is_visual!=YES)
-  {
-  if(surp->status.overlayed_by==0) {  return RET_FAILED;  }
-  handle=surp->status.overlayed_by;
-  if((ret=aa_ObjectCheck(aa.surface_system.object_id,handle,(VP)&surp,NULL))!=RET_YES) { return ret; }
-  }
-  */
  if(surp->status.is_visual!=YES) { return RET_FAILED; }
  if(rect==NULL) { aaRectSet(&rr,0,0,surp->status.size.w,surp->status.size.h); }
  else           { aaRectCopy(&rr,rect); }
@@ -71423,14 +70747,6 @@ noscale:
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.surface_system.object_id,handle,(VP)&surp,NULL))!=RET_YES) { return ret; }
- /*
- if(surp->status.is_visual!=YES)
-  {
-  if(surp->status.overlayed_by==0) {  return RET_FAILED;  }
-  handle=surp->status.overlayed_by;
-  if((ret=aa_ObjectCheck(aa.surface_system.object_id,handle,(VP)&surp,NULL))!=RET_YES) { return ret; }
-  }
-  */
  if(surp->status.is_visual!=YES) { return RET_FAILED; }
  if(rect==NULL) { aaRectSet(&rr,0,0,surp->status.size.w,surp->status.size.h); }
  else           { aaRectCopy(&rr,rect); }
@@ -71454,14 +70770,6 @@ noscale:
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.surface_system.object_id,handle,(VP)&surp,NULL))!=RET_YES) { return ret; }
- /*
- if(surp->status.is_visual!=YES)
-  {
-  if(surp->status.overlayed_by==0) {  return RET_FAILED;  }
-  handle=surp->status.overlayed_by;
-  if((ret=aa_ObjectCheck(aa.surface_system.object_id,handle,(VP)&surp,NULL))!=RET_YES) { return ret; }
-  }
-  */
  //if(surp->status.is_visual!=YES) { return RET_FAILED; }
  if((ret=aaUpdateAreaReset(&surp->status.update_area))!=RET_YES) { oops; }
  return RET_YES;
@@ -71482,14 +70790,6 @@ noscale:
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.surface_system.object_id,handle,(VP)&surp,NULL))!=RET_YES) { return ret; }
- /*
- if(surp->status.is_visual!=YES)
-  {
-  if(surp->status.overlayed_by==0) {  return RET_FAILED;  }
-  handle=surp->status.overlayed_by;
-  if((ret=aa_ObjectCheck(aa.surface_system.object_id,handle,(VP)&surp,NULL))!=RET_YES) { return ret; }
-  }
-  */
  if(surp->status.is_visual!=YES) { return RET_FAILED; }
  if(surp->status.update_area.state==YES)
   {
@@ -72139,19 +71439,6 @@ noscale:
    }
   }
 
-/*
- if(surp->status.move_pixels!=0)
-  {
-  i=1; aaSurfaceSpotRemove(handle,i);
-  surp->status.move_pixels=0;
-  }
- if(pixels!=0)
-  {
-  if(surp->status.is_sizeable!=YES) { return RET_FAILED; }
-  i=1; aaSurfaceSpotSet(handle,i,SPOT_Caption,2990,0,0,surp->status.rect.w,pixels,&sspot);
-  surp->status.move_pixels=pixels;
-  }
-  */
  return RET_YES;
  }
 
@@ -73193,149 +72480,6 @@ noscale:
 
 
 
-
-
-/*
-
- V appMain                             (V)
- {
- _gui gui;
- B etc[_3K];
- N slf,slt;
- H i,t,chars,fff;
- B cs;
- _rect r1,r2,r3;
- _textreader tr;
-
- while(!app.is_exiting)
-  {
-  if(appYield()!=YES)       { app.is_exiting=YES; }
-  if(app.is_exit)           { app.is_exiting=YES; }
-  switch(aa_stage)
-   {
-   case 0:
-   guiNew(&gui,0);
-   if(aaTextReaderOpen(&tr,"aa.h",0,F32)!=YES) oof;
-   fff=0;
-   cs=0;
-   aaSurfaceUpdate(gui.surface.handle);
-    aaSurfaceStatus(gui.surface.handle,&gui.surface.status);
-   aaStageSet(10);
-   break;
-
-
-   case 10:
-    i=0;
-    t=30;
-    while(1)
-     {
-     slf=slt=-1;
-     aaTextReaderLineGet(&tr,fff+i,&chars,etc);
-     if((fff+i)>=3  &&(fff+i)<=3)     { slf=3; slt=-1; }
-     if((fff+i)>=4  &&(fff+i)<=123)   { slf=0; slt=-1; }
-     if((fff+i)>=124&&(fff+i)<=124)   { slf=0; slt=-1; }
-     aaSurfaceEditorPaint(gui.surface.handle,i,&col_pastelblue[16],&col_gray[31],&col_red[17],&col_cyan[31],gui.font[0].handle,slf,slt,(i==3&&cs==1)?2:-1,3,&r1,&r2,&r3,"%s",etc);
-     //aaSurfaceEditorPaint(gui.surface.handle,i,0,0,0,0,font_16x32,slf,slt,(i==3)?2:-1,-1,&r1,&r2,&r3,"%s",etc);
-     //aaSurfaceUpdateAreaAdd(gui.surface.handle,&r1,0);
-     if(r3.w!=0)
-      {
-      //aaDebugf("%i,%i,%i,%i,%i",i,aaRectParts(r3));
-      aaSurfaceFill(gui.surface.handle,&r3,&col_green[31]);
-      //aaSurfaceUpdateAreaAdd(gui.surface.handle,&r31,0);
-      }
-      aaSurfaceUpdateAreaAdd(gui.surface.handle,&r1,0);
-     i++;
-     if(i>=t) break;
-     }
-    aaSurfaceStatus(gui.surface.handle,&gui.surface.status);
-   if(gui.surface.status.update_area.state)
-    {
-    aaSurfaceUpdate(gui.surface.handle);
-    aaSurfaceStatus(gui.surface.handle,&gui.surface.status);
-    }
-   aaStageSet(20);
-   break;
-
-   case 20:
-   if(appPulseUsr(2,1,200)!=YES) break;
-   if(cs==0) { cs=1; }
-   else      { cs=0; }
-   //aaSleep(420);
-   aaStageSet(10);
-   break;
-   }
-  }
-
- guiDelete(&gui);
- }
-
-
-
- V appMain                             (V)
- {
- _gui gui;
- B etc[_3K];
- N slf,slt;
- H i,t,chars,fff;
- B cs;
- _textreader tr;
-
- while(!app.is_exiting)
-  {
-  if(appYield()!=YES)       { app.is_exiting=YES; }
-  if(app.is_exit)           { app.is_exiting=YES; }
-  switch(aa_stage)
-   {
-   case 0:
-   guiNew(&gui,0);
-   if(aaTextReaderOpen(&tr,"aa.h",0,F32)!=YES) oof;
-   fff=0;
-   cs=0;
-   aaStageSet(10);
-   break;
-
-
-   case 10:
-    i=0;
-    t=30;
-    while(1)
-     {
-     slf=slt=-1;
-     aaTextReaderLineGet(&tr,fff+i,&chars,etc);
-     if((fff+i)>=3  &&(fff+i)<=3)     { slf=3; slt=-1; }
-     if((fff+i)>=4  &&(fff+i)<=123)   { slf=0; slt=-1; }
-     if((fff+i)>=124&&(fff+i)<=124)   { slf=0; slt=-1; }
-     aaSurfaceEditorPaint(gui.surface.handle,i,&col_pastelblue[16],&col_gray[31],&col_red[17],&col_cyan[31],gui.font[0].handle,slf,slt,-1,1,"%s",etc);
-     i++;
-     if(i>=t) break;
-     }
-    aaSurfaceStatus(gui.surface.handle,&gui.surface.status);
-   if(gui.surface.status.update_area.state)
-    {
-    aaSurfaceUpdate(gui.surface.handle);
-    aaSurfaceStatus(gui.surface.handle,&gui.surface.status);
-    }
-   aaStageSet(20);
-   break;
-
-   case 20:
-   if(cs==0) { cs=1; }
-   else      { cs=0; }
-   aaDebugf("%i",cs);
-   aaSleep(100);
-   aaStageSet(10);
-   break;
-   }
-  }
-
- guiDelete(&gui);
- }
-
-*/
-
-
-
-
  B aaSurfaceRectSave                   (H handle,_rect*rect)
  {
  B ret;
@@ -74291,16 +73435,6 @@ noscale:
 
 
 
- /*
- make sur dimgsize is bigger than imgsize
-
- when you create dimg
-
- diag=sqrt((imgsize->w*imgsize->w)+(imgsize->h*imgsize->h));
- dimg->w=imgsize->w+(diag-imgsize->w);
- dimg->h=imgsize->h+(diag-imgsize->h);
- */
-
 
 
 
@@ -74955,7 +74089,6 @@ noscale:
 
 
 
-/**----------------------------------------------------------------------*/
 /*-----------------------------------------------------------------------*/
 
 
@@ -79367,7 +78500,7 @@ u8       PCM unsigned 8-bit
 
 
 
- B aaAudioPitchTempoGet                (_aapitchtempo*aapitchtempo,N octave,N note,D fine,B mode)
+ B aaAudioPitchTempoGet                (_aapitchtempo*aapitchtempo,N octave,N note,D fine)
  {
  D sem;
  D oct;
@@ -79391,8 +78524,8 @@ u8       PCM unsigned 8-bit
  pv=pow(2.0,sem/12.0);
  //aapitchtempo->pitch=pv;
  //aapitchtempo->tempo=1.0/pv;
- if(aaBitGet(mode,0))  {  aapitchtempo->pitch=pv;  }
- if(aaBitGet(mode,1))  {  aapitchtempo->tempo=1.0/pv;  }
+ aapitchtempo->pitch=pv;
+ aapitchtempo->tempo=1.0/pv;
  return RET_YES;
  }
 
@@ -79507,7 +78640,6 @@ u8       PCM unsigned 8-bit
      aapitchshift->syn_magn[index]+=aapitchshift->ana_magn[k];
      aapitchshift->syn_freq[index]=aapitchshift->ana_freq[k]*amount;
      }
-
     }
    for(k=0;k<=fftframesize2;k++)
     {
@@ -79547,6 +78679,128 @@ u8       PCM unsigned 8-bit
   }
  return RET_YES;
  }
+
+
+
+ B aaAudioPitchShiftEx                 (_aapitchshift*aapitchshift,D amount,N isamps,D rate,DP indata,DP outdata)
+ {
+ D magn,phase,tmp,real,imag,signx;
+ D freqPerBin,expct;
+ N i,k,qpd,index,inFifoLatency,stepSize,fftframesize2;
+ D window;
+ //D am;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(aapitchshift==NULL) { return RET_BADPARM; }
+ if(aapitchshift->magic!=aaHPP(aaAudioPitchShiftInit)) { return RET_NOTINITIALIZED; }
+ if(amount==1.0)
+  {
+  aaMemoryCopy(outdata,sizeof(D)*isamps*1,indata);
+  return RET_YES;
+  }
+  //         am=amount;
+ fftframesize2=aapitchshift->frame_size/2;
+ stepSize=aapitchshift->frame_size/aapitchshift->osamp;
+ freqPerBin=rate/(D)aapitchshift->frame_size;
+ //expct=2.*aaPi*(D)stepSize/(D)aapitchshift->frame_size;
+ expct=aaPi2*(D)stepSize/(D)aapitchshift->frame_size;
+ inFifoLatency=aapitchshift->frame_size-stepSize;
+ if(aapitchshift->rover==0) aapitchshift->rover=inFifoLatency;
+ for(i=0;i<isamps;i++)
+  {
+  aapitchshift->fifo_in[aapitchshift->rover]=indata[i];
+  outdata[i]=aapitchshift->fifo_out[aapitchshift->rover-inFifoLatency];
+  aapitchshift->rover++;
+  if(aapitchshift->rover>=aapitchshift->frame_size)
+   {
+   aapitchshift->rover=inFifoLatency;
+   for(k=0;k<aapitchshift->frame_size;k++)
+    {
+    //window=-.5*cos(2.*aaPi*(D)k/(D)aapitchshift->frame_size)+.5;
+    window=aapitchshift->window[k];
+    aapitchshift->fft_worksp[2*k]=aapitchshift->fifo_in[k]*window;
+    aapitchshift->fft_worksp[2*k+1]=0.0;
+    }
+   aa_AudioSystemFFT(aapitchshift->fft_worksp,aapitchshift->frame_size,-1);
+   for(k=0;k<=fftframesize2;k++)
+    {
+    real=aapitchshift->fft_worksp[2*k];
+    imag=aapitchshift->fft_worksp[2*k+1];
+    magn=2.0*sqrt(real*real+imag*imag);
+    phase=0.0;
+    if(imag!=0.0)
+     {
+     if(imag>0.0)   signx=+1.0;
+     else           signx=-1.0;
+     if(real==0.0)  phase=signx*aaPi/2.0;
+     else           phase=atan2(imag,real);
+     }
+    tmp=phase-aapitchshift->last_phase[k];
+    aapitchshift->last_phase[k]=phase;
+    tmp-=(D)k*expct;
+    qpd=tmp/aaPi;
+    if(qpd>=0) qpd+=qpd&1;
+    else       qpd-=qpd&1;
+    tmp-=aaPi*(D)qpd;
+    //tmp=aapitchshift->osamp*tmp/(2.*aaPi);
+    tmp=aapitchshift->osamp*tmp/(aaPi2);
+    tmp=(D)k*freqPerBin+tmp*freqPerBin;
+    aapitchshift->ana_magn[k]=magn;
+    aapitchshift->ana_freq[k]=tmp;
+    }
+   aaMemoryFill(aapitchshift->syn_magn,aapitchshift->frame_size*sizeof(D),0);
+   aaMemoryFill(aapitchshift->syn_freq,aapitchshift->frame_size*sizeof(D),0);
+   for(k=0;k<=fftframesize2;k++)
+    {
+    index=k*(amount);
+    if(index<=fftframesize2)
+     {
+     aapitchshift->syn_magn[index]+=aapitchshift->ana_magn[k];
+     aapitchshift->syn_freq[index]=aapitchshift->ana_freq[k]*amount;
+     }
+    }
+   for(k=0;k<=fftframesize2;k++)
+    {
+    magn=aapitchshift->syn_magn[k];
+    tmp=aapitchshift->syn_freq[k];
+    tmp-=(D)k*freqPerBin;
+    tmp/=freqPerBin;
+    //tmp=2.*aaPi*tmp/aapitchshift->osamp;
+    tmp=aaPi2*tmp/aapitchshift->osamp;
+    tmp+=(D)k*expct;
+    aapitchshift->sum_phase[k]+=tmp;
+    phase=aapitchshift->sum_phase[k];
+    aapitchshift->fft_worksp[2*k]=magn*cos(phase);
+    aapitchshift->fft_worksp[2*k+1]=magn*sin(phase);
+    }
+   for(k=aapitchshift->frame_size+2;k<2*aapitchshift->frame_size;k++)
+    {
+    aapitchshift->fft_worksp[k]=0.0;
+    }
+   aa_AudioSystemFFT(aapitchshift->fft_worksp,aapitchshift->frame_size,1);
+   for(k=0;k<aapitchshift->frame_size;k++)
+    {
+    window=aapitchshift->window[k];
+    //window=-.5*cos(2.*aaPi*(D)k/(D)aapitchshift->frame_size)+.5;
+    aapitchshift->output_accum[k]+=2.*window*aapitchshift->fft_worksp[2*k]/(fftframesize2*aapitchshift->osamp);
+    }
+   for(k=0;k<stepSize;k++)
+    {
+    aapitchshift->fifo_out[k]=aapitchshift->output_accum[k];
+    }
+   aaMemoryMove(aapitchshift->output_accum,aapitchshift->frame_size*sizeof(D),aapitchshift->output_accum+stepSize);
+   for(k=0;k<inFifoLatency;k++)
+    {
+    aapitchshift->fifo_in[k]=aapitchshift->fifo_in[k+stepSize];
+    }
+   }
+  }
+ return RET_YES;
+ }
+
+
 
 
 
@@ -80431,7 +79685,7 @@ u8       PCM unsigned 8-bit
  wavalias->magic=aaHPP(aaWavAlias);
  if(!resetoffset) { wavalias->offset=off; }
  if(aaAudioConverterInit(&wavalias->acon,&wav->a_mode,&wav->a_mode)!=YES) oof;
- if(aaAudioPitchTempoGet(&wavalias->ptem,oct,note,0,1)!=YES) { oof; }
+ if(aaAudioPitchTempoGet(&wavalias->ptem,oct,note,0)!=YES) { oof; }
  aaMemoryCopy(&wavalias->wav,sizeof(_wav),wav);
  return RET_YES;
  }
@@ -80499,65 +79753,6 @@ u8       PCM unsigned 8-bit
    //aaLog(-555,"... %i",todo);
    }
 
-  /*
-  if(wav->user_data[0]==aa_WAVMODE_CrossLoop)
-   {
-   todo=aaNumRoof(samples,cando);
-   todo=aaNumRoof(todo,_1K);
-   bytes=todo*wav->mode.bps;
-   offs=wav->offset*wav->mode.bps;
-   aaMemoryCopy(od,bytes,&wav->ptr[offs]);
-   wav->offset+=todo;
-   if(wav->offset>=wav->samples||(parm1>0&&wav->offset>=(H)parm1))
-    {
-    wav->offset=(H)parm0;
-    }
-   //wav->offset%=(wav->samples);
-   samples-=todo;
-   od=od+(todo*wav->mode.bps);
-   }
-  else
-  if(wav->user_data[0]==aa_WAVMODE_Loop)
-   {
-   todo=aaNumRoof(samples,cando);
-   todo=aaNumRoof(todo,_1K);
-   bytes=todo*wav->mode.bps;
-   offs=wav->offset*wav->mode.bps;
-   aaMemoryCopy(od,bytes,&wav->ptr[offs]);
-   wav->offset+=todo;
-   wav->offset%=(wav->samples);
-   samples-=todo;
-   od=od+(todo*wav->mode.bps);
-   }
-  else
-  if(wav->user_data[0]==aa_WAVMODE_OneShot)
-   {
-   if(cando)
-    {
-    todo=aaNumRoof(samples,cando);
-    todo=aaNumRoof(todo,_1K);
-    bytes=todo*wav->mode.bps;
-    offs=wav->offset*wav->mode.bps;
-    aaMemoryCopy(od,bytes,&wav->ptr[offs]);
-    wav->offset+=todo;
-    samples-=todo;
-    od=od+(todo*wav->mode.bps);
-    }
-   else
-    {
-    todo=samples;
-    todo=aaNumRoof(todo,_1K);
-    bytes=todo*wav->mode.bps;
-    aaMemoryFill(od,bytes,0);
-    samples-=todo;
-    od=od+(todo*wav->mode.bps);
-    }
-   }
-  else
-   {
-   oof;
-   }
-  */
   }
  return RET_YES;
  }
@@ -80619,6 +79814,25 @@ u8       PCM unsigned 8-bit
  aaMemoryFill(wavwriter,sizeof(_wavwriter),0);
  return RET_YES;
  }
+
+
+
+
+ B aaWavWriterReset                    (_wavwriter*wavwriter)
+ {
+ B ret;
+ _audiomode am;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ aaAudioModeCopy(&am,&wavwriter->am);
+ if((ret=aaWavWriterDelete(wavwriter))!=YES) { oops; }
+ if((ret=aaWavWriterNew(wavwriter,&am))!=YES) { oops; }
+ return RET_YES;
+ }
+
+
+
 
 
 
@@ -81532,11 +80746,6 @@ u8       PCM unsigned 8-bit
  }
 
 
-
-/*
-__int64 size=( ((__int64)ffd.nFileSizeHigh)<<32 )+ffd.nFileSizeLow;
-printf("Big size=%I64d bytes.\n", size);
-*/
 
 typedef struct _FILE_STANDARD_INFO {
   LARGE_INTEGER AllocationSize;
@@ -82792,23 +82001,6 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
- /*
- void silently_remove_directory(LPCTSTR dir) // Fully qualified name of the directory being deleted, without trailing backslash
-{
-    SHFILEOPSTRUCT file_op = {
-        NULL,
-        FO_DELETE,
-        dir,
-        "",
-        FOF_NOCONFIRMATION |
-        FOF_NOERRORUI |
-        FOF_SILENT,
-        FA,
-        0,
-        "" };
-    SHFileOperation(&file_op);
-}
-*/
 
 
  B aaFileFolderTreeDelete              (VP foldername,B levels,B type,B delfiles)
@@ -84198,13 +83390,6 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
- /* see readfile win32 api help: for pipes ...
-
-lpNumberOfBytesRead
-Points to the number of bytes read. ReadFile sets this value to zero before doing any work or error radioing. If this parameter is zero when ReadFile returns TRUE on a named pipe, the other end of the message-mode pipe called the WriteFile function with nNumberOfBytesToWrite set to zero.
-If lpOverlapped is NULL, lpNumberOfBytesRead cannot be NULL.
-If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an overlapped read operation, you can get the number of bytes read by calling GetOverlappedResult. If hFile is associated with an I/O completion port, you can get the n
- */
 
 
  B aaFileStreamRead                    (H handle,H bytes,VP data)
@@ -85459,7 +84644,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   if((ret=aaFileStreamOpenQuick(&fsu.handle,textreader->file_name))!=YES) { return ret; }
   aaFileStreamStatus(fsu.handle,&fsu.status);
   filebytes=(Q)fsu.status.bytes;
-
   fromoff=0;
   while(1)
    {
@@ -85476,7 +84660,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
     add=1;
     }
    if(pos==F32) { oof;  }
-
    if(textreader->line_count==0) { startoff=fromoff; }
    fromoff+=(Q)pos+add;
    if(startline>lc)    {    lc++;    continue;    }
@@ -85493,7 +84676,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   return RET_YES;
   }
  if(fsu.handle!=0) {  aaFileStreamDestroy(fsu.handle);  fsu.handle=0; }
-
  if((ret=aaFileInfoGet(textreader->file_name,&filebytes,0,0,0,0))!=YES) { return ret; }
  if((ret=aaMemoryUnitAllocate(&textreader->mun,(H)filebytes))!=YES) { return ret; } //oops; }
  if((ret=aaFileLoadToBuffer(textreader->file_name,0,(H)filebytes,textreader->mun.mem,0))!=YES) { return ret;  }// oops; }
@@ -85530,9 +84712,8 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  if(textreader->is_initialized!=YES) {  return RET_NOTINITIALIZED; }
  if(chars) { *chars=0; }
  if(txt) { aaStringNull(txt); }
- if(line>=textreader->line_count) { return RET_BOUNDS; }
+ if(line>=textreader->line_count) { aaNote(0,"%i %i",line,textreader->line_count); return RET_BOUNDS; }
  if(chars)  {  *chars=textreader->line_chars[line];  }
-
  if(txt==NULL) { return RET_YES; }
  if(textreader->line_chars[line]==0) { return RET_YES; }
  aaStringNCopy(txt,&textreader->mun.mem[textreader->line_offset[line]],textreader->line_chars[line],YES);
@@ -85555,6 +84736,7 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  if(textreader==NULL) { return RET_BADPARM; }
  if(textreader->magic!=(H)(PP)aaTextReaderNew) { return RET_NOTINITIALIZED; }
  if(textreader->is_initialized!=YES) {  return RET_NOTINITIALIZED; }
+ if(line) { *line=F32; }
  if(aft) { aaStringNull(aft); }
  if(from>=textreader->line_count) { return RET_BOUNDS; }
  //if(line) { *line=
@@ -85563,7 +84745,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   {
   if((ret=aaTextReaderLineGet(textreader,li,&chars,0))!=YES) { oops; break; }
   if(chars>(_256K-_2K)) { aaDebugf("ch=%i",chars); oof; }
-
   if((ret=aaTextReaderLineGet(textreader,li,&chars,buf))!=YES) { oops; break; }
   while(1)
    {
@@ -86072,19 +85253,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   sysinfo->os_service_pack[1]=ver.spack[1];
   sysinfo->os_flags=ver.smask<<16;
   sysinfo->os_flags+=ver.type;
-  /*
- switch (ver.platform)
- {
- case VER_PLATFORM_WIN32_WINDOWS:   aaStringCopy(sysinfo->os_string,"WIN32"); break;
- case VER_PLATFORM_WIN32_NT:
-                         if(ver.majmin[0] == 6) { aaStringCopy(sysinfo->os_string,"Vista"); break; }
-                         if(ver.majmin[0] == 4) { aaStringCopy(sysinfo->os_string,"WinNT"); break; }
-                         if(ver.majmin[0] == 5) { aaStringCopy(sysinfo->os_string,"WinXp"); break; }
-                                       aaStringCopy(sysinfo->os_string,"Win??");
-                                       break;
-    default: aaStringCopy(sysinfo->os_string,"?????"); break;
- }
- */
   vr1=VerifyVersionInfo((OSVERSIONINFOEX*)&ver,VER_MAJORVERSION,VerSetConditionMask(0,VER_MAJORVERSION,VER_EQUAL));
   vr2=VerifyVersionInfo((OSVERSIONINFOEX*)&ver,VER_MINORVERSION,VerSetConditionMask(0,VER_MINORVERSION,VER_EQUAL));
   if(vr1==0||vr2==0)  {}
@@ -86151,10 +85319,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   }
 
 
- /* level 0: if basic info, excluding time zone info
-    level 1: includes timezone
-    level 2: includes username, pc name, language
- */
  sysinfo->timezone_bias=aa.timer_system.timezone_bias;
  sysinfo->is_dls=aa.timer_system.is_dls;
  sysinfo->is_std=aa.timer_system.is_std;
@@ -88328,24 +87492,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
    xi=(B)((cryp->state[2+x]+cryp->state[2+y])%256);
    bp[c]^=cryp->state[2+xi];
    }
-     /* rule 1
-  if(cryp->crc[0xfe]==0xf119eef1)
-   {
-   z=(x+(y*(cryp->state[1+x])));
-   if(!z) { z++; }
-   _asm_
-    {
-    mov eax,0xfe
-    sub edx,eax
-    jz _maincryp
-    jmp _subscryp
-    storsd
-   _maincryp:
-    jne _maincryp
-
-
-   }
-   */
   cryp->state[0]=x;
   cryp->state[1]=y;
   }
@@ -89845,58 +88991,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
 
 
 
- /*
- B aaJsonParserKeyFind                 (H handle,HP line,H from,Z depth,VP val,VP fmt,...)
- {
- B ret;
- _aa_jsonobject*jsonp;
- va_list argptr;
- B str[_64K],txt[_64K];
- H sl,l;
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if((ret=aa_ObjectCheck(aa.json_system.object_id,handle,(VP)&jsonp,NULL))!=RET_YES) { return ret; }
- if(val) { aaStringNull(val); }
- if(jsonp->status.decode_success!=YES) { return RET_NOTREADY; }
- if(line) { *line=F32; }
- aaFmt(fmt,argptr,str);
- aaStringLen(str,&sl);
- if(sl==0) { return RET_BADPARM; }
- if(from>=jsonp->status.lines) { return RET_BOUNDS; }
- for(l=from;l<jsonp->status.lines;l++)
-  {
-  if(jsonp->status.line[l].type!=JSON_TYPE_KEY) { continue; }
-  if(depth!=-1&&jsonp->status.line[l].depth!=depth) { continue; }
-  aaStringNCopy(txt,&jsonp->status.mem[jsonp->status.line[l].off],jsonp->status.line[l].len,YES);
-  if(aaStringCompare(str,txt,0)!=YES) { continue; }
-  if(line) { *line=l; }
-  if(val)  { aaStringNCopy(val,&jsonp->status.mem[jsonp->status.line[l+1].off],jsonp->status.line[l+1].len,YES);   }
-  return RET_YES;
-  }
- return RET_NOTFOUND;
- }
-
-*/
-
-
-#if 0
- B aaJsonUserDataSet                   (H handle,H line,VP udata)
- {
- B ret;
- _aa_jsonobject*jsonp;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if((ret=aa_ObjectCheck(aa.json_system.object_id,handle,(VP)&jsonp,NULL))!=RET_YES) { return ret; }
- if(line>=jsonp->status.lines) { return RET_BOUNDS; }
- if(udata==NULL) { aaMemoryFill(&jsonp->status.line[line].user_data[0],sizeof(jsonp->status.line[line].user_data),0); }
- else            { aaMemoryCopy(&jsonp->status.line[line].user_data[0],sizeof(jsonp->status.line[line].user_data),udata); }
- return RET_YES;
- }
-
-#endif
 
  B aaJsonIsOpener                      (B type)
  {
@@ -90347,16 +89441,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
     break;
     }
    if(type==0) { break; }
-   /*
-
-   if(aaStringFindFirstIString(&str[pos],0," content=",9,&pot)!=YES)
-    {
-    if(aaStringFindFirstIString(&str[pos],0,"\"content=",9,&pot)!=YES)
-     {
-     if(aaStringFindFirstIString(&str[pos],0,"\'content=",9,&pot)!=YES)       break;
-     }
-    }
-   */
 
    pos+=pot+8;        if(aaStringFindChar(&str[pos],0,&pot,DQUOTE_CHAR,YES,0,YES)!=YES) { break; }
    //pos+=pot+1; s=pos; if(aaStringFindFirstIString(&str[pos],0,"\"",1,&pot)!=YES)        { break; }
@@ -90841,27 +89925,39 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
 /*-----------------------------------------------------------------------*/
 
 
- structure
- {
- B slot[64][_1K];
- H count;
- }
- _flatpart;
 
-
- B flatpartPush                        (_flatpart*flatpart,VP fmt,...);
+ B flatpartPush                        (_flatpart*flatpart,VP val);
+ B flatpartPushf                       (_flatpart*flatpart,VP fmt,...);
  B flatpartPop                         (_flatpart*flatpart);
+ B flatpartPrint                       (_flatpart*flatpart,VP flatmp,VP key,VP val);
  B flatpartPrintf                      (_flatpart*flatpart,VP flatmp,VP key,VP fmt,...);
 
 /*-----------------------------------------------------------------------*/
 
-
-
- B flatpartPush                        (_flatpart*flatpart,VP fmt,...)
+ B flatpartPush                        (_flatpart*flatpart,VP val)
  {
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ ///aaVargsf16K(fmt);
+ aaStringUnQuote(val,0,0);
+ aaStringCopy(flatpart->slot[flatpart->count],val);//str16k.buf);
+ //aaStringCopyf(flatpart->slot[flatpart->count],"%s",str16k.buf);
+ flatpart->count++;
+ return RET_YES;
+ }
+
+
+
+ B flatpartPushf                       (_flatpart*flatpart,VP fmt,...)
+ {
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
  aaVargsf16K(fmt);
  aaStringUnQuote(str16k.buf,0,0);
- aaStringCopyf(flatpart->slot[flatpart->count],"%s",str16k.buf);
+ aaStringCopy(flatpart->slot[flatpart->count],str16k.buf);
+ //aaStringCopyf(flatpart->slot[flatpart->count],"%s",str16k.buf);
  flatpart->count++;
  return RET_YES;
  }
@@ -90870,9 +89966,63 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
 
  B flatpartPop                         (_flatpart*flatpart)
  {
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
  if(flatpart->count==0) { return RET_YES; }
  flatpart->count--;
  flatpart->slot[flatpart->count][0]=0;
+ return RET_YES;
+ }
+
+
+
+ B flatpartPrint                       (_flatpart*flatpart,VP flatmp,VP key,VP val)
+ {
+ H p,sl;
+ B txt[_256K];
+ B str[_8K];
+ B ch;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ txt[0]=NULL_CHAR;
+ aaStringNull(txt);
+ for(p=0;p<flatpart->count;p++)
+  {
+  aaStringLen(txt,&sl);
+  if(sl==0) { ch=0; }
+  else      { ch=txt[sl-1]; }
+  if(ch=='.'&&flatpart->slot[p][0]=='[')
+   {
+   txt[sl-1]=0;
+   txt[sl]=0;
+   }
+  aaStringAppend(txt,flatpart->slot[p]);
+  aaStringAppendChar(txt,'.');
+  }
+ if(key)
+  {
+  aaStringCopy(str,key);
+  aaStringUnQuote(str,0,0);
+  aaStringAppend(txt,str);
+  aaStringAppendChar(txt,':');
+  aaStringAppend(txt,val);
+  }
+ else
+  {
+  aaStringLen(txt,&sl);
+  if(sl==0) { ch=0; }
+  else      { ch=txt[sl-1]; }
+  if(ch=='.')
+   {
+   txt[sl-1]=':';
+   txt[sl]=0;
+   }
+  aaStringAppend(txt,val);
+  }
+ aaStringAppendf(flatmp,"%s\n",txt);
  return RET_YES;
  }
 
@@ -90887,6 +90037,9 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  B str[_8K];
  B ch;
 
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
  aaVargsf256K(fmt);
  aaStringNull(txt);
  for(p=0;p<flatpart->count;p++)
@@ -90901,13 +90054,18 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
    txt[sl]=0;
    //aaStringLastCharSet(txt,0,0,1);
    }
-  aaStringAppendf(txt,"%s.",flatpart->slot[p]);
+  aaStringAppend(txt,flatpart->slot[p]);
+  aaStringAppendChar(txt,'.');
+  //aaStringAppendf(txt,"%s.",flatpart->slot[p]);
   }
  if(key)
   {
   aaStringCopy(str,key);
   aaStringUnQuote(str,0,0);
-  aaStringAppendf(txt,"%s:%s",str,str256k.buf);
+  aaStringAppend(txt,str);
+  aaStringAppendChar(txt,':');
+  aaStringAppend(txt,str256k.buf);
+  //aaStringAppendf(txt,"%s:%s",str,str256k.buf);
   }
  else
   {
@@ -90926,6 +90084,8 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   aaStringAppend(txt,str256k.buf);
   }
  //aaStringAppendf(app.big[bigidx].tmp,"%s\n",txt);
+ //aaStringAppend(flatmp,txt);
+ //aaStringAppendChar(flatmp,LF_CHAR);
  aaStringAppendf(flatmp,"%s\n",txt);
  return RET_YES;
  }
@@ -90946,36 +90106,13 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  #endif
  if(jcursor==NULL) { return RET_MISSINGPARM; }
 
- #if 0
  aaMemoryFill(jcursor,sizeof(_jcursor),0);
- #else
- jcursor->magic=0;
- aaMemoryFill(&jcursor->jsu,sizeof(_jsonunit),0);
- jcursor->jsline=0;
- jcursor->sys_opti=0;
- jcursor->upd_bits=0;
- jcursor->depth_bias=0;
- jcursor->cur_ix=0;
- jcursor->max_ix=0;
- jcursor->ix_remains=0;
- aaMemoryFill(&jcursor->mstack,sizeof(_ministack),0);
- jcursor->key[0]=0;
- jcursor->val[0]=0;
- jcursor->h0=0;
- jcursor->h1=0;
- jcursor->pre[0]=0;
- jcursor->mid[0]=0;
- jcursor->spc[0]=0;
- jcursor->short_val[0]=0;
- jcursor->short_all[0]=0;
- jcursor->all[0]=0;
- jcursor->flat_out[0]=0;
- jcursor->llsb=0;
- #endif
-
-
  jcursor->magic=aaHPP(aaJcursorNew);
  if((ret=aaMiniStackNew(&jcursor->mstack))!=YES) { oops; }
+ if((ret=aaMemoryAllocate((VP)&jcursor->val,_256K))!=YES) { oops; }
+ if((ret=aaMemoryAllocate((VP)&jcursor->short_all,_512K))!=YES) { oops; }
+ if((ret=aaMemoryAllocate((VP)&jcursor->all,_512K))!=YES) { oops; }
+ if((ret=aaMemoryAllocate((VP)&jcursor->flat_out,_8MEG))!=YES) { oops; }
  return RET_YES;
  }
 
@@ -90990,6 +90127,10 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  if(jcursor==NULL) { return RET_MISSINGPARM; }
  if(jcursor->magic!=aaHPP(aaJcursorNew)) { return RET_FAILED; }
  aaMiniStackDelete(&jcursor->mstack);
+ if(jcursor->val)       { aaMemoryRelease(jcursor->val); }
+ if(jcursor->short_all) { aaMemoryRelease(jcursor->short_all); }
+ if(jcursor->all)       { aaMemoryRelease(jcursor->all); }
+ if(jcursor->flat_out)  { aaMemoryRelease(jcursor->flat_out); }
  aaMemoryFill(jcursor,sizeof(_jcursor),0);
  return RET_YES;
  }
@@ -91046,8 +90187,10 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
 
  if(bits==F32) { return RET_YES;  }
 
- aaStringNull(jcursor->key);
- aaStringNull(jcursor->val);
+ //aaStringNull(jcursor->key);
+ //aaStringNull(jcursor->val);
+ jcursor->key[0]=NULL_CHAR;
+ jcursor->val[0]=NULL_CHAR;
  jcursor->h0=0;
  jcursor->h1=0;
  if(jcursor->jsline[ix].ty[0]==JSON_TYPE_KEY||jcursor->jsline[ix].ty[0]==JSON_TYPE_STRING) {  qt=1; }
@@ -91093,32 +90236,42 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   }
 
 
- aaStringNull(jcursor->pre);
- aaStringNull(jcursor->mid);
- //aaStringNull(jcursor->short_val);
- aaStringNull(jcursor->short_all);
- aaStringNull(jcursor->all);
- aaStringNull(jcursor->spc);
+ //aaStringNull(jcursor->pre);
+ //aaStringNull(jcursor->mid);
+ ///aaStringNull(jcursor->short_val);
+ //aaStringNull(jcursor->short_all);
+ //aaStringNull(jcursor->all);
+ //aaStringNull(jcursor->spc);
 
+ jcursor->pre[0]=NULL_CHAR;
+ jcursor->mid[0]=NULL_CHAR;
+ //aaStringNull(jcursor->short_val);
+ jcursor->short_all[0]=NULL_CHAR;
+ jcursor->all[0]=NULL_CHAR;
+ jcursor->spc[0]=NULL_CHAR;
 
  ///=================================================
  if(aaBitGet(bits,0)) // 1
   {
   aaStringCopyf(jcursor->pre,"%-5i cd=%-2i in=%-1i dp=%-3i ",ix,jcursor->jsline[ix+0].code,jcursor->jsline[ix+0].inc,jcursor->jsline[ix+0].depth);
-  aaStringNull(tok);
+  //aaStringNull(tok);
+  tok[0]=NULL_CHAR;
   if(jcursor->jsline[ix+0].hash!=0)  { aaStringCopyf(tok,"h0=0x%08x",jcursor->jsline[ix+0].hash); }
   aaStringAppendf(jcursor->pre,"%-15s",tok);
-  aaStringNull(tok);
+  //aaStringNull(tok);
+  tok[0]=NULL_CHAR;
   if(jcursor->jsline[ix+0].inc>1)
    {
    if(jcursor->jsline[ix+1].hash!=0)  { aaStringCopyf(tok,"h1=0x%08x",jcursor->jsline[ix+1].hash); }
    }
   aaStringAppendf(jcursor->pre,"%-15s",tok);
 
-  aaStringNull(tok);
+  //aaStringNull(tok);
+  tok[0]=NULL_CHAR;
   aaStringCopyf(tok,"kl=%i",jcursor->jsline[ix+0].len);
   aaStringAppendf(jcursor->pre,"%-8s",tok);
-  aaStringNull(tok);
+  //aaStringNull(tok);
+  tok[0]=NULL_CHAR;
   if(jcursor->jsline[ix+0].inc>1)
    {
    aaStringCopyf(tok,"vl=%i",jcursor->jsline[ix+1].len);
@@ -91130,17 +90283,17 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  ///=================================================
  if(aaBitGet(bits,1)) // 2
   {
-  aaStringNull(tok); vvv=jcursor->jsline[ix+0].is_object;   if(vvv==1)  { aaStringCopy(tok,"OBJ"); }
+  tok[0]=NULL_CHAR; vvv=jcursor->jsline[ix+0].is_object;   if(vvv==1)  { aaStringCopy(tok,"OBJ"); }
   aaStringAppendf(jcursor->mid,"%-5s",tok);
-  aaStringNull(tok); vvv=jcursor->jsline[ix+0].is_array;    if(vvv==1)  { aaStringCopy(tok,"RAY"); }
+  tok[0]=NULL_CHAR; vvv=jcursor->jsline[ix+0].is_array;    if(vvv==1)  { aaStringCopy(tok,"RAY"); }
   aaStringAppendf(jcursor->mid,"%-5s",tok);
-  aaStringNull(tok); vvv=jcursor->jsline[ix+0].elm_count;   if(vvv!=-1) { aaStringCopyf(tok,"elc=%i",vvv); }
+  tok[0]=NULL_CHAR; vvv=jcursor->jsline[ix+0].elm_count;   if(vvv!=-1) { aaStringCopyf(tok,"elc=%i",vvv); }
   aaStringAppendf(jcursor->mid,"%-8s ",tok);
-  aaStringNull(tok); vvv=jcursor->jsline[ix+0].elm_index;   if(vvv!=-1) { aaStringCopyf(tok,"eix=%i.%i",jcursor->jsline[ix+0].elm_parent,vvv); }
+  tok[0]=NULL_CHAR; vvv=jcursor->jsline[ix+0].elm_index;   if(vvv!=-1) { aaStringCopyf(tok,"eix=%i.%i",jcursor->jsline[ix+0].elm_parent,vvv); }
   aaStringAppendf(jcursor->mid,"%-16s ",tok);
-  aaStringNull(tok); vvv=jcursor->jsline[ix+0].open_line;   if(vvv!=-1) { aaStringCopyf(tok,"open=%i",vvv); }
+  tok[0]=NULL_CHAR; vvv=jcursor->jsline[ix+0].open_line;   if(vvv!=-1) { aaStringCopyf(tok,"open=%i",vvv); }
   aaStringAppendf(jcursor->mid,"%-12s ",tok);
-  aaStringNull(tok); vvv=jcursor->jsline[ix+0].close_line;  if(vvv!=-1) { aaStringCopyf(tok,"cls=%i",vvv); }
+  tok[0]=NULL_CHAR; vvv=jcursor->jsline[ix+0].close_line;  if(vvv!=-1) { aaStringCopyf(tok,"cls=%i",vvv); }
   aaStringAppendf(jcursor->mid,"%-11s ",tok);
   aaStringAppend(jcursor->mid,"|");
   }
@@ -91382,13 +90535,13 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
  if(amt<0)
   {
   amt=aaNumAbs(amt);
-  aaDebugf("prev %i",amt);
+  //aaDebugf("prev %i",amt);
   for(i=0;i<amt;i++)   {   if((ret=aaJcursorPrev(jcursor))!=YES) { oops; break; }   }
   }
  else
   {
   amt=aaNumAbs(amt);
-  aaDebugf("next %i",amt);
+  //aaDebugf("next %i",amt);
   for(i=0;i<amt;i++)   {   if((ret=aaJcursorNext(jcursor))!=YES) { oops; break; }   }
   }
  return ret;
@@ -91438,7 +90591,7 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
   if(show)
    {
    //aaDebugf("%s%s%s%s.%s:%s",jcursor->pre,jcursor->mid,jcursor->spc,jcursor->key,str,val);//jaycur.all);
-   aaDebugf("%s.%s:%s",jcursor->key,str,val);
+   //aaDebugf("%s.%s:%s",jcursor->key,str,val);
    }
   break;
   }
@@ -91450,99 +90603,100 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
 
 
 
- B aaJcursorFlatten                    (_jcursor*jcursor)
- {
- B ret;
- _jsonline*jsonlinea;
- _jsonline*jsonlineb;
- B the_name[_1K];
- B the_id[_1K];
- _flatpart fpa;
- N rai;
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- aaStringNull(the_name);
- aaStringNull(the_id);
- aaMemoryFill(&fpa,sizeof(fpa),0);
- rai=0;
- if(aaJcursorHome(jcursor)!=YES) { oof; }
- while(1)
-  {
-  if(jcursor->ix_remains==0) { break; }
-  aaJcursorLinePtr(jcursor,&jsonlinea);
-  while(1)
-   {
-   if(jsonlinea->code==JSON_CODE_KEY_VALUE)      {   flatpartPrintf(&fpa,jcursor->flat_out,jcursor->key,"%s",jcursor->val);    break;   }
-   if(jsonlinea->code==JSON_CODE_KEY_OBJ_OPEN)   {   flatpartPush(&fpa,"%s",jcursor->key);   break;   }
-   if(jsonlinea->code==JSON_CODE_OBJ_CLOSE)      {   flatpartPop(&fpa);   break;   }
-   if(jsonlinea->code==JSON_CODE_KEY_ARRAY_OPEN) {   flatpartPush(&fpa,"%s",jcursor->key);   break;   }
-   if(jsonlinea->code==JSON_CODE_ARRAY_CLOSE)    {   flatpartPop(&fpa);   break;   }
-   if(jsonlinea->code==JSON_CODE_OBJ_OPEN)
-    {
-    if(0) {  if(jsonlinea->elm_index!=-1&&fpa.count>0)   {   flatpartPush(&fpa,"[%i]",jsonlinea->elm_index);    }     }
-    //else  {  if(jsonlinea->elm_index!=-1&&fpa.count>=0)  {   flatpartPush(&fpa,"[%i]",jsonlinea->elm_index);    }     }
-    else  {  if(jsonlinea->elm_index!=-1)               {   flatpartPush(&fpa,"[%i]",jsonlinea->elm_index);    }     }
-    break;
-    }
-   if(jsonlinea->code==JSON_CODE_ARRAY_OPEN)
-    {
-    if(fpa.count==0)
-     {
-     if((ret=aaJcursorNext(jcursor))!=YES) { oops; break; }
-     aaJcursorLinePtr(jcursor,&jsonlineb);
-     if((ret=aaJcursorPrev(jcursor))!=YES) { oops; break; }
-     if(fpa.count==0&&jsonlineb->code==JSON_CODE_OBJ_OPEN)   {     break;      }
-     }
-    flatpartPush(&fpa,"[%i]",rai);
-    rai++;
-    break;
-    }
-   if(jsonlinea->code==JSON_CODE_KEY_OBJ_EMPTY)   {   flatpartPrintf(&fpa,jcursor->flat_out,jcursor->key,"%s",jcursor->val);    break;    }
-   if(jsonlinea->code==JSON_CODE_KEY_ARRAY_EMPTY) {   flatpartPrintf(&fpa,jcursor->flat_out,jcursor->key,"%s",jcursor->val);    break;    }
-   if(jsonlinea->code==JSON_CODE_VALUE)
-    {
-    if(jsonlinea->elm_index!=-1)
-     {
-     flatpartPush(&fpa,"[%i]",jsonlinea->elm_index);
-     flatpartPrintf(&fpa,jcursor->flat_out,0,"%s",jcursor->val);
-     flatpartPop(&fpa);
-     }
-    else
-     {
-     flatpartPrintf(&fpa,jcursor->flat_out,0,"%s",jcursor->val);
-     }
-    break;
-    }
-   aaNote(0,"ze %i",jsonlinea->code);
-   }
-  //aaNote(0,"%i",jsonlinea->code);
-  if(aaJcursorNext(jcursor)!=YES) { oof; }
-  }
- return RET_YES;
- }
 
-
-/*
-
- B aaJcursorDump                       (_jcursor*jcursor)
+ B aaJcursorFlattenBegin               (_jcursor*jcursor)
  {
  if(jcursor==NULL) { return RET_MISSINGPARM; }
  if(jcursor->magic!=aaHPP(aaJcursorNew)) { return RET_FAILED; }
- jcursorPush(jcursor);
- jcursorHome(jcursor);
- while(jcursor->ix_remains>0)
-  {
-  aaDebugf("%s%s%s%s",jcursor->pre,jcursor->mid,jcursor->spc,jcursor->short_all);
-  jcursorNext(jcursor);
-  }
- jcursorPop(jcursor);
+ jcursor->flatten_stage=10;
  return RET_YES;
  }
 
 
 
-*/
+
+ B aaJcursorFlattenYield               (_jcursor*jcursor,H ita)
+ {
+ B ret;
+ H go;
+ //_flatpart fpa;
+ if(jcursor==NULL) { return RET_MISSINGPARM; }
+ if(jcursor->magic!=aaHPP(aaJcursorNew)) { return RET_FAILED; }
+ if(ita<1) { ita=1; }
+ go=0;
+ while(1)
+  {
+  if(jcursor->flatten_stage==1000) { break; }
+  if((go++)>ita) { break; }
+  switch(jcursor->flatten_stage)
+   {
+   case 10:
+   aaMemoryFill(&jcursor->fpa,sizeof(jcursor->fpa),0);
+   jcursor->rai=0;
+   if(aaJcursorHome(jcursor)!=YES) { oof; }
+   jcursor->flatten_stage=20;
+   break;
+
+   case 20:
+   if(jcursor->ix_remains==0) { jcursor->flatten_stage=1000; break; }
+   aaJcursorLinePtr(jcursor,&jcursor->jsonlinea);
+   while(1)
+    {
+    if(jcursor->jsonlinea->code==JSON_CODE_KEY_VALUE)      {   flatpartPrint(&jcursor->fpa,jcursor->flat_out,jcursor->key,jcursor->val);    break;   }
+    if(jcursor->jsonlinea->code==JSON_CODE_KEY_OBJ_OPEN)   {   flatpartPush(&jcursor->fpa,jcursor->key);   break;   }
+    if(jcursor->jsonlinea->code==JSON_CODE_OBJ_CLOSE)      {   flatpartPop(&jcursor->fpa);   break;   }
+    if(jcursor->jsonlinea->code==JSON_CODE_KEY_ARRAY_OPEN) {   flatpartPush(&jcursor->fpa,jcursor->key);   break;   }
+    if(jcursor->jsonlinea->code==JSON_CODE_ARRAY_CLOSE)    {   flatpartPop(&jcursor->fpa);   break;   }
+    if(jcursor->jsonlinea->code==JSON_CODE_OBJ_OPEN)
+     {
+     if(0) {  if(jcursor->jsonlinea->elm_index!=-1&&jcursor->fpa.count>0) { flatpartPushf(&jcursor->fpa,"[%i]",jcursor->jsonlinea->elm_index);  } }
+     else  {  if(jcursor->jsonlinea->elm_index!=-1)                       { flatpartPushf(&jcursor->fpa,"[%i]",jcursor->jsonlinea->elm_index);  } }
+     break;
+     }
+    if(jcursor->jsonlinea->code==JSON_CODE_ARRAY_OPEN)
+     {
+     if(jcursor->fpa.count==0)
+      {
+      if((ret=aaJcursorNext(jcursor))!=YES) { oops; break; }
+      aaJcursorLinePtr(jcursor,&jcursor->jsonlineb);
+      if((ret=aaJcursorPrev(jcursor))!=YES) { oops; break; }
+      if(jcursor->fpa.count==0&&jcursor->jsonlineb->code==JSON_CODE_OBJ_OPEN)   {     break;      }
+      }
+     flatpartPushf(&jcursor->fpa,"[%i]",jcursor->rai);
+     jcursor->rai++;
+     break;
+     }
+    if(jcursor->jsonlinea->code==JSON_CODE_KEY_OBJ_EMPTY)   {   flatpartPrint(&jcursor->fpa,jcursor->flat_out,jcursor->key,jcursor->val);    break;    }
+    if(jcursor->jsonlinea->code==JSON_CODE_KEY_ARRAY_EMPTY) {   flatpartPrint(&jcursor->fpa,jcursor->flat_out,jcursor->key,jcursor->val);    break;    }
+    if(jcursor->jsonlinea->code==JSON_CODE_VALUE)
+     {
+     if(jcursor->jsonlinea->elm_index!=-1)
+      {
+      flatpartPushf(&jcursor->fpa,"[%i]",jcursor->jsonlinea->elm_index);
+      flatpartPrint(&jcursor->fpa,jcursor->flat_out,0,jcursor->val);
+      flatpartPop(&jcursor->fpa);
+      }
+     else
+      {
+      flatpartPrint(&jcursor->fpa,jcursor->flat_out,0,jcursor->val);
+      }
+     break;
+     }
+    aaNote(0,"ze %i",jcursor->jsonlinea->code);
+    }
+   if(aaJcursorNext(jcursor)!=YES) { oof; }
+   break;
+
+   case 1000:
+   break;
+   //return RET_YES;
+   }
+  }
+ if(jcursor->flatten_stage!=1000) { return RET_NOTREADY; }
+ return RET_YES;
+ }
+
+
 
 
 
@@ -91900,11 +91054,6 @@ If lpOverlapped is not NULL, lpNumberOfBytesRead can be NULL. If this is an over
 /*------------------------------------------------------------------------*/
 
 
-/*
-if incoming is EITHER, than it will create in either incoming or outgoing mode,
-whatever is possible
-*/
-
 
  B aaIpcCreate                         (HP handle,H bytes,VP name,...)
  {
@@ -92118,15 +91267,6 @@ whatever is possible
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
-
- /*
- if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_None))!=RET_YES)
-  {
-  if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
-  return ret;
-  }
- was_locked=is.is_locked;
- */
  if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Lock))!=RET_YES)
   {
   if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
@@ -92135,17 +91275,6 @@ whatever is possible
  if(is.is_locked!=YES) { oof; }
  if(data==NULL) { aaMemoryFill(&is.ram[offset],bytes,0); }
  else           { aaMemoryCopy(&is.ram[offset],bytes,data); }
- /*
- if(!was_locked)
-  {
-  if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Release))!=RET_YES) { oops; }
-  if(is.is_locked!=NO)  { oof; }
-  }
- else
-  {
-  if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_None))!=RET_YES) { oops; }
-  }
-  */
  if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Release))!=RET_YES) { oops; }
  if(is.is_locked!=NO)  { oof; }
  if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
@@ -92182,14 +91311,6 @@ whatever is possible
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
- /*
- if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_None))!=RET_YES)
-  {
-  if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
-  return ret;
-  }
- was_locked=is.is_locked;
- */
  if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Lock))!=RET_YES)
   {
   if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
@@ -92197,22 +91318,8 @@ whatever is possible
   }
  if(is.is_locked!=YES) { oof; }
  aaMemoryCopy(data,bytes,&is.ram[offset]);
- /*
- if(!was_locked)
-  {
   if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Release))!=RET_YES) { oops; }
   if(is.is_locked!=NO)  { oof; }
-  }
- else
-  {
-  if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_None))!=RET_YES) { oops; }
-  }
-  */
-  if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Release))!=RET_YES) { oops; }
-  if(is.is_locked!=NO)  { oof; }
-
-
-
  if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
  return RET_YES;
  }
@@ -92711,27 +91818,6 @@ whatever is possible
 
 
 
-/*
- B aaNetWebsocketServerDuplicate       (_websocketserver*websocketserver,_websocketserver*swebsocketserver)
- {
- if(swebsocketserver==NULL) { return RET_MISSINGPARM; }
- if(swebsocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
- if(websocketserver==NULL)  { return RET_MISSINGPARM; }
- aaMemoryFill(websocketserver,sizeof(_websocketserver),0);
- websocketserver->magic=swebsocketserver->magic;
- websocketserver->max_calls=swebsocketserver->max_calls;
- websocketserver->cur_calls=swebsocketserver->cur_calls;
- websocketserver->tot_calls=swebsocketserver->tot_calls;
- aaNetAdrCopy(&websocketserver->adr,&swebsocketserver->adr);
- aaMemoryCopy(&websocketserver->port,sizeof(_tcpportunit),&swebsocketserver->port);
- aaMemoryCopy(&websocketserver->call,sizeof(_tcpcallunit),&swebsocketserver->call);
- websocketserver->scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
- return RET_YES;
- }
-
-*/
-
-
 
 
 
@@ -92983,7 +92069,7 @@ whatever is possible
  if(websocketclient==NULL) { return RET_MISSINGPARM; }
  if(websocketclient->magic!=aaHPP(aaNetWebsocketClientNew)) { return RET_NOTINITIALIZED; }
  go=0;
- to=5;
+ to=3;
  while(1)
   {
   if((go++)>=to) { break; }
@@ -93434,29 +92520,7 @@ whatever is possible
 
 
 
- /*
- B pinkTimerSet                        (_pink*pink,Q timeout)
- {
- if(pink==NULL) { return RET_MISSINGPARM; }
- if(pink->magic!=aaHPP(pinkNew)) { return RET_NOTINITIALIZED; }
- pink->ms=aaMsRunning();
- pink->to=timeout;
- return RET_YES;
- }
- */
-
-
-
-
-
-
-
-
 /*-----------------------------------------------------------------------*/
-/*-----------------------------------------------------------------------*/
-
-
-/**----------------------------------------------------------------------*/
 
  B aaInfoGet                           (_info*info,H bits)
  {
@@ -96553,42 +95617,6 @@ whatever is possible
   #endif
 
 
-
-
-
-  #if 0
-  case MYSQL_PKT_EXECUTE_RESULT:
-  aaEzyLog(&ezy,2,"pkt execute");
-  oof;
-  offset=0;
-  if(payloadLen<1) {    aaEzyLog(&ezy,2,   "%s: <MYSQL_PKT_EXECUTE_RESULT> payloadLen<1, payloadLen:%d",              __FUNCTION__, payloadLen);      return -1;        }
-  mysql->mysql_err_code=0;
-  mysql->mysql_err_msg[0]=NULL_CHAR;
-  mysql->affected_rows=0;
-  mysql->insert_id=0;
-  result=payload[offset];
-  offset+=1;
-  if(result==0xff) {          offset=aa_MySqlReadErrorInfo(mysql, payload, payloadLen, offset);        }
-  if(result==0x00)
-   {
-   consumeLen=aa_MySqlLcb(&payload[offset],        &mysql->affected_rows, &nul, payloadLen-offset);
-   if(consumeLen<0)  {   aaEzyLog(&ezy,2,   "%s: <MYSQL_PKT_EXECUTE_RESULT> aa_MySqlLcb affected_rows consumeLen<0",                __FUNCTION__);        return -1;          }
-   offset+=consumeLen;
-   consumeLen=aa_MySqlLcb(&payload[offset],           &mysql->insert_id, &nul, payloadLen-offset);
-   if(consumeLen<0)   {   aaEzyLog(&ezy,2,   "%s: <MYSQL_PKT_EXECUTE_RESULT> aa_MySqlLcb insert_id consumeLen<0",                __FUNCTION__);        return -1;          }
-   offset+=consumeLen;
-   }
-  mysql->want_packet_type=MYSQL_PKT_UNKNOWN;
-  if(mysql->is_loggedin==YES&&mysql->want_packet_type==MYSQL_PKT_UNKNOWN) { mysql->is_prompt=YES; }
-  else                                                                    { mysql->is_prompt=NO;  }
-  if(mysql->mysql_err_code==0) {  aaStringCopyf(etc,"OK"); }
-  else                        {  aaStringCopyf(etc,"ERR (%i) %s",mysql->mysql_err_code,mysql->mysql_err_msg);  }
-  aa_MySqlTagAppend(mysql,MYSQL_TAG_RESULT,mysql->row_count,0,0,etc);
-  mysql->is_completed=YES;
-  return 0;
-  #endif
-
-
   case MYSQL_PKT_SELECT_RESULT:
   offset=0;
   if(payloadLen<1) {   return -1; } //aaEzyLog(&ezy,2,   "%s: <MYSQL_PKT_EXECUTE_RESULT> payloadLen<1, payloadLen:%d",              __FUNCTION__, payloadLen);
@@ -97062,42 +96090,6 @@ whatever is possible
  return RET_YES;
  }
 
-
-
-/*
- B aaMySqlEzyPrintProc                 (_mysql*mysql,_mysqltag*mysqltag,_mysqlfield*mysqlfield,VP fmt,...)
- {
- aaVargsf8K(fmt);
- UNUSE(mysql);
- UNUSE(mysqltag);
- UNUSE(mysqlfield);
- aaEzyLog(&ezy,2,"%s",str8k.buf);
- return RET_YES;
- }*/
-
-
-
-
-
-/*
- select database()
- show variables
- select version()
- show global status
- SELECT * FROM mysql.user
- select distinct * from mysql.user
- select user()
- show table status from asee
- show variables like 'max_allowed_packet'
- set global max_allowed_packet=33554432
- SELECT SUM(amount) AS totalsum FROM unclaimeds.srevnsw
- SELECT did FROM unclaimeds.smartmoney order by did asc limit 2 offset 0
- SELECT * FROM unclaimeds.smartmoney WHERE surname LIKE '%ian%' limit 10
- SELECT COUNT(*) FROM unclaimeds.srevnsw where amount > 100.00
-*/
-
-
-/*-----------------------------------------------------------------------*/
 
 /*-----------------------------------------------------------------------*/
 
@@ -97593,7 +96585,6 @@ redo:
    if((ret=aaSurfaceSpotSet(ezy->surf.handle,24,SPOT_Caption,3100,ezy->surf.status.rect.w-40,10,25,25,0))!=YES) { oops; }
    }
   }
-
  if(ezy->flags&2)
   {
   //if(aaTextboxInit(&ezy->text_box,ezy->surf.handle,ezy->font[2].handle)!=YES) { oof; }
@@ -97617,7 +96608,6 @@ redo:
  aaSurfaceStatus(ezy->surf.handle,&ezy->surf.status);
  //aaDebugf("ref");
  //aaLog(-555,"resizi");
-
  ezy->refresh_counter++;
  return RET_YES;
  }
@@ -97701,12 +96691,6 @@ redo:
     {
     if(ezy->key_vk==VK_ESCAPE) { ezy->is_quiting=YES; }
     }
-   /*
-   if(ezy->ie.event_byt[aa_IE_KeyDown]||ezy->ie.event_byt[aa_IE_KeyHeld])
-    {
-    if(ezy->ie.curr->vkey==VK_ESCAPE&&ezy->ie.curr->focus_handle==ezy->surf.handle) { ezy->is_quiting=YES; }
-    }
-   */
    }
   }
 
@@ -98097,11 +97081,8 @@ redo:
 
  if(name==NULL) { return RET_MISSINGPARM; }
  aaStringNull(out);
-
-
  aaStringCopyf(txt,"%s",name);
  aaStringUpper(txt,0,0);
-
  aaStringAppendfCrlf(out,"/*-----------------------------------------------------------------------*/");
  aaStringAppendfCrlf(out," #pragma once");
  aaStringAppendfCrlf(out," #ifndef INC_%s_H",txt);
@@ -98157,8 +97138,6 @@ redo:
  aaStringAppendfCrlf(out," ");
  aaStringAppendfCrlf(out," ");
  aaStringAppendfCrlf(out," ");
-
-
  aaStringCopyfLen(txt,&tl," B %sNew",name);
  aaStringFill(spc,39-tl,32,YES);
  aaStringAppend(txt,spc);
@@ -98172,7 +97151,6 @@ redo:
  aaStringAppendfCrlf(out," }");
  aaStringAppendfCrlf(out,"");
  aaStringAppendfCrlf(out,"");
-
  aaStringCopyfLen(txt,&tl," B %sDelete",name);
  aaStringFill(spc,39-tl,32,YES);
  aaStringAppend(txt,spc);
@@ -98211,91 +97189,8 @@ redo:
  aaStringAppendfCrlf(out," }");
  aaStringAppendfCrlf(out,"");
  aaStringAppendfCrlf(out,"");
-
-
  aaClipBoardTextWritef(1,"%s",out);
  //return RET_YES;
-
- #if 0
-
- aaStringAppendfCrlf(out," structure");
- aaStringAppendfCrlf(out," {");
- aaStringAppendfCrlf(out," H magic;");
- aaStringAppendfCrlf(out," H stage;");
- aaStringAppendfCrlf(out," }");
- aaStringAppendfCrlf(out," _%s;",name);
- aaStringAppendfCrlf(out,"");
- aaStringAppendfCrlf(out,"");
- aaStringCopyfLen(txt,&tl," B %sNew",name);
- aaStringFill(spc,39-tl,32,YES);
- aaStringAppend(txt,spc);
- aaStringAppendfCrlf(out,"%s(_%s*%s);",txt,name,name);
- aaStringCopyfLen(txt,&tl," B %sDelete",name);
- aaStringFill(spc,39-tl,32,YES);
- aaStringAppend(txt,spc);
- aaStringAppendfCrlf(out,"%s(_%s*%s);",txt,name,name);
- aaStringCopyfLen(txt,&tl," B %sYield",name);
- aaStringFill(spc,39-tl,32,YES);
- aaStringAppend(txt,spc);
- aaStringAppendfCrlf(out,"%s(_%s*%s);",txt,name,name);
- aaStringAppendfCrlf(out,"");
- aaStringAppendfCrlf(out,"/*-----------------------------------------------------------------------*/");
- aaStringAppendfCrlf(out,"");
-
- aaStringCopyfLen(txt,&tl," B %sNew",name);
- aaStringFill(spc,39-tl,32,YES);
- aaStringAppend(txt,spc);
- aaStringAppendfCrlf(out,"%s(_%s*%s)",txt,name,name);
- aaStringAppendfCrlf(out," {");
- aaStringAppendfCrlf(out," if(%s==NULL) { return RET_MISSINGPARM; }",name);
- aaStringAppendfCrlf(out," aaMemoryFill(%s,sizeof(_%s),0);",name,name);
- aaStringAppendfCrlf(out," %s->magic=aaHPP(%sNew);",name,name);
- aaStringAppendfCrlf(out," %s->stage=0;",name,name);
- aaStringAppendfCrlf(out," return RET_YES;");
- aaStringAppendfCrlf(out," }");
- aaStringAppendfCrlf(out,"");
- aaStringAppendfCrlf(out,"");
-
- aaStringCopyfLen(txt,&tl," B %sDelete",name);
- aaStringFill(spc,39-tl,32,YES);
- aaStringAppend(txt,spc);
- aaStringAppendfCrlf(out,"%s(_%s*%s)",txt,name,name);
- aaStringAppendfCrlf(out," {");
- aaStringAppendfCrlf(out," if(%s==NULL) { return RET_MISSINGPARM; }",name);
- aaStringAppendfCrlf(out," if(%s->magic!=aaHPP(%sNew)) { return RET_NOTINITIALIZED; }",name,name);
- aaStringAppendfCrlf(out," aaMemoryFill(%s,sizeof(_%s),0);",name,name);
- aaStringAppendfCrlf(out," return RET_YES;");
- aaStringAppendfCrlf(out," }");
- aaStringAppendfCrlf(out,"");
- aaStringAppendfCrlf(out,"");
- aaStringCopyfLen(txt,&tl," B %sYield",name);
- aaStringFill(spc,39-tl,32,YES);
- aaStringAppend(txt,spc);
- aaStringAppendfCrlf(out,"%s(_%s*%s)",txt,name,name);
- aaStringAppendfCrlf(out," {");
- aaStringAppendfCrlf(out," H go;");
- aaStringAppendfCrlf(out,"");
- aaStringAppendfCrlf(out," if(%s==NULL) { return RET_MISSINGPARM; }",name);
- aaStringAppendfCrlf(out," if(%s->magic!=aaHPP(%sNew)) { return RET_NOTINITIALIZED; }",name,name);
- aaStringAppendfCrlf(out," go=2;");
- aaStringAppendfCrlf(out," while(go--)");
- aaStringAppendfCrlf(out,"  {");
- aaStringAppendfCrlf(out,"  switch(%s->stage)",name);
- aaStringAppendfCrlf(out,"   {");
- aaStringAppendfCrlf(out,"   case 0:");
- aaStringAppendfCrlf(out,"   %s->stage=100;",name);
- aaStringAppendfCrlf(out,"   break;");
- aaStringAppendfCrlf(out,"");
- aaStringAppendfCrlf(out,"   case 100:");
- aaStringAppendfCrlf(out,"   break;");
- aaStringAppendfCrlf(out,"   }");
- aaStringAppendfCrlf(out,"  }");
- aaStringAppendfCrlf(out," return RET_YES;");
- aaStringAppendfCrlf(out," }");
- aaStringAppendfCrlf(out,"");
- aaStringAppendfCrlf(out,"");
- aaClipBoardTextWritef(1,"%s",out);
- #endif
  return RET_YES;
  }
 

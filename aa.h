@@ -1,5 +1,5 @@
 /*-----------------------------------------------------------------------*/
-// 2008-2024, Ashot Apakian ver 306
+// 2008-2024, Ashot Apakian
 /*-----------------------------------------------------------------------*/
 /******************************************************
  codeblocks: build options
@@ -124,7 +124,7 @@
  #include <sspi.h>
  #include <Ws2tcpip.h>
  #include <mswsock.h>
- #include <malloc.h>
+ //#include <malloc.h>
  #endif
 
  #ifndef NULL_POINTR
@@ -862,6 +862,7 @@
 
 
  #define aaMissingParm(x)              if(x==NULL) { oof; return RET_MISSINGPARM; }
+
  #define aaMagicSet(x,m)               (x)->magic=aaHPP(m)
  #define aaMagicIs(x,m)                (x)->magic==aaHPP(m)
  #define aaMagicIsNot(x,m)             (x)->magic!=aaHPP(m)
@@ -1072,6 +1073,7 @@
  B aaFocusToDbg                        (B clr);
  B aaFocusToBorland                    (V);
  B aaFocusToCodeBlocks                 (V);
+ B aaFocusToChrome                     (H wigidx);
  B aaFocusToFirefox                    (V);
  B aaFocusToHwnd                       (HWND hwnd);
  B aaHwndGroupGet                      (HWND*active,HWND*focus,HWND*foreground);
@@ -1213,6 +1215,7 @@
  B aaTimerProfilerAdjust               (_profiler*profiler,H count,B what,G amnt);
  B aaTimerProfilerPulse                (_profiler*profiler,B what,G elapsed);
  G aaTimerProfilerRead                 (_profiler*profiler,B what);
+
  B aaTimerProfilerGet                  (QP counter);
  B aaTimerProfilerElapsed              (Q counter,GP mselapsed,GP microelapsed,GP nanoelapsed,GP counterelapsed);
 
@@ -1954,6 +1957,8 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...);
  B aaStringSquareFieldKeyValGetAll     (VP str,H chars,_stringkeyval*stringkeyval);
 
  B aaStringSquareFieldKeyValUnitGet    (VP str,H chars,H index,_stringkeyvalunit*skvu);
+
+ B aaStringSizeHumanize                (VP str,G val);
 
 
 
@@ -5784,7 +5789,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 
  PUB CP aa_musicnote[12];
 
- #define AA_PITCHSHIFT_MAX_FRAMESIZE   2048
+ #define AA_PITCHSHIFT_MAX_FRAMESIZE   1024
 
 
  #define aa_NOTE_C                     0
@@ -5947,10 +5952,10 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaAudioConverterInit                (_audioconverter*audioconverter,_audiomode*imode,_audiomode*omode);
  B aaAudioConverterProcess             (_audioconverter*audioconverter,H isamples,VP idata,D tempo,HP osamples,VP odata);
 
- B aaAudioPitchTempoGet                (_aapitchtempo*aapitchtempo,N octave,N note,D fine,B mode);
-
+ B aaAudioPitchTempoGet                (_aapitchtempo*aapitchtempo,N octave,N note,D fine);
  B aaAudioPitchShiftInit               (_aapitchshift*aapitchshift,N framesize,B oversample);
  B aaAudioPitchShift                   (_aapitchshift*aapitchshift,F amount,N isamps,F rate,FP indata,FP outdata);
+ B aaAudioPitchShiftEx                 (_aapitchshift*aapitchshift,D amount,N isamps,D rate,DP indata,DP outdata);
 
  B aaAudioNoteToFrequency              (N oct,N note,DP freq);
  B aaAudioFrequencyToNote              (D freq,NP oct,NP note);
@@ -6021,6 +6026,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 
  B aaWavWriterNew                      (_wavwriter*wavwriter,_audiomode*audiomode);
  B aaWavWriterDelete                   (_wavwriter*wavwriter);
+ B aaWavWriterReset                    (_wavwriter*wavwriter);
  B aaWavWriterWrite                    (_wavwriter*wavwriter,H samples,VP data);
 
 /*-----------------------------------------------------------------------*/
@@ -6768,6 +6774,14 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 
 /*-----------------------------------------------------------------------*/
 
+ structure
+ {
+ B slot[64][_1K];
+ H count;
+ }
+ _flatpart;
+
+
 
  structure
  {
@@ -6782,16 +6796,21 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  H ix_remains;
  _ministack mstack;
  B key[_8K];
- B val[_256K];
+ BP val;
  H h0,h1;
  B pre[_1K];
  B mid[_1K];
  B spc[_1K];
  B short_val[_1K];
- B short_all[_512K];
- B all[_512K];
- B flat_out[_8MEG];
+ BP short_all;
+ BP all;
+ BP flat_out;
  N llsb;
+ H flatten_stage;
+ N rai;
+ _jsonline*jsonlinea;
+ _jsonline*jsonlineb;
+ _flatpart fpa;
  }
  _jcursor;
 
@@ -6810,7 +6829,8 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaJcursorNext                       (_jcursor*jcursor);
  B aaJcursorWalk                       (_jcursor*jcursor,N amt);
  B aaJcursorParent                     (_jcursor*jcursor);
- B aaJcursorFlatten                    (_jcursor*jcursor);
+ B aaJcursorFlattenBegin               (_jcursor*jcursor);
+ B aaJcursorFlattenYield               (_jcursor*jcursor,H ita);
 
 
 /*-----------------------------------------------------------------------*/
