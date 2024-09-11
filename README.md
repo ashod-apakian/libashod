@@ -1,3 +1,3 @@
 # libashod
 Ashods core library
-v307
+v308
