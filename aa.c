@@ -32,10 +32,10 @@ linker options
 */
 
 
- H aa_hyper_parm_0=32;   // aa_jsonSystemDecode
- H aa_hyper_parm_1=1;    // aaShellYield
- H aa_hyper_parm_2=3;    // aaShellRead was 4
- H aa_hyper_parm_3=2;    // aaJsonStatus , number of aa_jsonSystemDecode's called
+ H aa_hyper_parm_0=8;   // aa_jsonSystemDecode
+ H aa_hyper_parm_1=1;   // aaShellYield
+ H aa_hyper_parm_2=3;   // aaShellRead was 4
+ H aa_hyper_parm_3=16;  // aaJsonStatus , number of aa_jsonSystemDecode's called
 
  ////H binerr_user_cntr=0;
 
@@ -60,7 +60,7 @@ linker options
  H aa_last_line_executed               =__LINE__;
  H aa_user_line_executed               =0;
 
- #define aa_VERSION                    308
+ #define aa_VERSION                    309
 
 /*-----------------------------------------------------------------------*/
 
@@ -32300,22 +32300,16 @@ else
    jsonp->status.line[rl].fmt[2]=
    jsonp->status.line[rl].fmt[3]=
    jsonp->status.line[rl].fmt[4]=NULL_CHAR;
-
  jsonp->status.line[rl].is_array=NO;
  jsonp->status.line[rl].is_object=NO;
-
  jsonp->status.line[rl].open_line=-1;
  jsonp->status.line[rl].close_line=-1;
  jsonp->status.line[rl].parent_line=-1;
  jsonp->status.line[rl].elm_count=-1;
  jsonp->status.line[rl].elm_parent=-1;
  jsonp->status.line[rl].elm_index=-1;
-
  jsonp->status.line[rl].hash=0;
-
-
  jsonp->status.line[rl].depth=jsonp->depth;
-
  jsonp->status.line[rl].bytes=bytes;
  jsonp->status.line[rl].type=type;
  jsonp->status.line[rl].off=off;
@@ -32400,7 +32394,6 @@ else
     if(jsonp->pa.bp[0]!=DQUOTE_CHAR)  { aaParserSeek(&jsonp->pa,1);  continue; }
    // aaDebugf("%s %i ",__func__,__LINE__);
     sl=(jsonp->pa.offset-jsonp->pb.offset)+1;
-
     //aaDebugf("%s %i ",__func__,__LINE__);
     aa_JsonSystemDecoderType((VP)&jsonp,JSON_TYPE_STRING,jsonp->pb.offset,sl,jsonp->pb.bp);
     //aaDebugf("%s %i ",__func__,__LINE__);
@@ -36268,11 +36261,7 @@ else
    aaParserOffsetSet(&pa,o);
    continue;
    }
-
   hit[3]++;
-
-
-
   aaStringLen(ob,&chars);
   aaParserInit(&pa,ob,chars);
   aaParserOffsetSet(&pa,o);
@@ -36665,6 +36654,7 @@ else
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
+ if(chars==0) { aaStringLen(str,&chars); }
  if((ret=aaStringIsQuoted(str,chars,&qc))==RET_YES)
   {
   if(qchar) { *qchar=qc; }
@@ -40028,9 +40018,9 @@ soff=moff=stage=0;
 
  B aaParserSeek                        (_parser*parser,N amnt)
  {
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
+ //#ifdef aa_VERSION
+// aa_ZIAG(__FUNCTION__);
+// #endif
  if(parser==NULL) { return RET_BADPARM; }
  if(parser->magic!=aa_PARSE_MAGIC) { return RET_NOTSTARTED; }
  if(parser->string==NULL) { return RET_BADPARM; }
@@ -88876,8 +88866,9 @@ typedef struct _FILE_STANDARD_INFO {
  {
  B ret;
  _aa_jsonobject*jsonp;
- B inq;
- H i;
+ B inq,ch;
+ H i,sl,o;
+ BP mem;
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
@@ -88892,6 +88883,12 @@ typedef struct _FILE_STANDARD_INFO {
   {
   return RET_NOTREADY;
   }
+
+ aaStringLen(jsonp->status.mem,&sl);
+ //aaDebugf("sl=%i",sl);
+ if((ret=aaMemoryAllocate((VP)&mem,sl+_1K))!=YES) { oops; }
+
+ o=0;
  jsonp->status.is_decoding=YES;
  jsonp->status.decode_success=NO;
  jsonp->status.decode_failure=NO;
@@ -88899,33 +88896,59 @@ typedef struct _FILE_STANDARD_INFO {
  inq=NO;
    while(1)
     {
-    if(jsonp->status.mem[i]==0)
+    ch=jsonp->status.mem[i];
+    if(ch==0)
      {
-     jsonp->status.mem_bytes=i;
-     aaParserInit(&jsonp->pa,jsonp->status.mem,(H)jsonp->status.mem_bytes);
+     mem[o++]=ch;
      break;
      }
     if(i>=jsonp->status.mem_bytes) { aaNote(0,"line=%i i=%i",__LINE__,i); break; }
     if(inq==0)
      {
-     if(jsonp->status.mem[i]==DQUOTE_CHAR) { inq=jsonp->status.mem[i]; i++; continue; }
-     }
-    else
-     {
-     if(jsonp->status.mem[i]==BSLASH_CHAR&&jsonp->status.mem[i+1]==inq) { i+=2; continue; }
-     if(jsonp->status.mem[i]==inq) { inq=0; i++; continue; }
-     }
-    if(inq==0)
-     {
-     if(aaCharIsVisible(jsonp->status.mem[i])==NO&&aaCharIsVisible(jsonp->status.mem[i+1])==NO)
+     if(ch==DQUOTE_CHAR)
       {
-      aaStringDeleteChars(jsonp->status.mem,0,i,1);
+      mem[o++]=ch;
+      inq=ch;
+      i++;
       continue;
       }
      }
+    else
+     {
+     if(ch==BSLASH_CHAR&&jsonp->status.mem[i+1]==inq)
+      {
+      mem[o++]=ch;
+      mem[o++]=inq;
+      i+=2;
+      continue;
+      }
+     if(ch==inq)
+      {
+      mem[o++]=ch;
+      inq=0;
+      i++;
+      continue;
+      }
+     }
+
+    if(inq==0)
+     {
+     if(aaCharIsVisible(ch)==NO&&aaCharIsVisible(jsonp->status.mem[i+1])==NO)
+      {
+      i+=2;
+      //if((ret=aaStringDeleteChars(jsonp->status.mem,0,i,1))!=YES) { oops; }
+      continue;
+      }
+     }
+    mem[o++]=ch;
     i++;
     }
+
+ mem[o]=0;
+ aaStringCopy(jsonp->status.mem,mem);
  aaStringLen(jsonp->status.mem,&jsonp->status.mem_bytes);
+ aaParserInit(&jsonp->pa,jsonp->status.mem,(H)jsonp->status.mem_bytes);
+ aaMemoryRelease(mem);
  return RET_YES;
  }
 
@@ -90422,6 +90445,11 @@ typedef struct _FILE_STANDARD_INFO {
   aaStringAppend(txt,val);
   }
  //aaTimerProfilerElapsed(pp[1],0,&ms[1],0,0);
+
+ //aaStringAppendChar(txt,LF_CHAR);
+ //aaStringAppendChar(txt,NULL_CHAR);
+ //aaStringAppend(flatmp,txt);
+
  aaStringAppendf(flatmp,"%s\n",txt);
  //aa1TimerProfilerElapsed(pp[2],0,&ms[2],0,0);
 
@@ -90569,6 +90597,7 @@ oof;
  ix=jcursor->cur_ix;
  if((N)ix==jcursor->llsb)   { return RET_YES;  }
  if(bits==F32) { return RET_YES;  }
+
  jcursor->key[0]=NULL_CHAR;
  jcursor->val[0]=NULL_CHAR;
  jcursor->h0=0;
@@ -90907,7 +90936,7 @@ oof;
   }
  else
   {
-  amt=aaNumAbs(amt);
+  ///amt=aaNumAbs(amt);
   //aaDebugf("next %i",amt);
   for(i=0;i<amt;i++)   {   if((ret=aaJcursorNext(jcursor))!=YES) { oops; break; }   }
   }
@@ -90943,7 +90972,7 @@ oof;
  while(1)
   {
   if(jcursor->ix_remains==0||jcursor->cur_ix==0) { break;  }
-  jcursor->sys_opti=1;
+//  jcursor->sys_opti=1;
   if((ret=aaJcursorPrev(jcursor))!=YES) { oops; break; }
   aaJcursorLinePtr(jcursor,&jsonlineb);
   ok=0;
