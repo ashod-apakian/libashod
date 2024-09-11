@@ -125,6 +125,7 @@
  #include <Ws2tcpip.h>
  #include <mswsock.h>
  //#include <malloc.h>
+// #include <ntifs.h>
  #endif
 
  #ifndef NULL_POINTR
@@ -926,6 +927,7 @@
  PUB B aa_is_quit_called;
  PUB B aa_is_quit_received;
  PUB B aa_is_esc;
+ PUB B aa_key_down;
  PUB H aa_ie_events_waiting;
  PUB H aa_ie_events_waiting_threshold;
  PUB B aa_is_morph_pending;
@@ -2642,6 +2644,8 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  }
  _questatus;
 
+
+
  structure
  {
  H handle;
@@ -3736,6 +3740,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B is_failure;
  H tcp_handle;
  B fail_reason;
+ B auth_token[129];
  B url[513];
  B host[129];
  B ua[257];
@@ -4016,7 +4021,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaNetRttInit                        (_netrtt*rtt,H mintimeout,H maxtimeout,H initialtimeout);
  B aaNetRttUpdate                      (_netrtt*rtt,H ms,B lost);
 
- B aaNetWebsocketInit                  (_websocket*websocket,H tcpcallhandle,VP fmt,...);
+ B aaNetWebsocketInit                  (_websocket*websocket,H tcpcallhandle,VP authtok,VP fmt,...);
  B aaNetWebsocketYield                 (_websocket*websocket);
  B aaNetWebsocketClose                 (_websocket*websocket);
  B aaNetWebsocketWrite                 (_websocket*websocket,B opcode,B finflag,H bytes,VP data);
@@ -5816,7 +5821,6 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  H frequency;
  B bits;
  B channels;
- H rate;
  B bps;
  B mode;
  }
@@ -5924,6 +5928,8 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  }
  _audiounit;
 
+
+
 /* audiotofloats
  mode 0=interleaved
  //mode 1=only left
@@ -5951,6 +5957,8 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 
  B aaAudioConverterInit                (_audioconverter*audioconverter,_audiomode*imode,_audiomode*omode);
  B aaAudioConverterProcess             (_audioconverter*audioconverter,H isamples,VP idata,D tempo,HP osamples,VP odata);
+
+ B aaAudioConverterQuick               (_audiomode*imode,H isamples,VP idata,D tempo,_audiomode*omode,HP osamples,VP odata);
 
  B aaAudioPitchTempoGet                (_aapitchtempo*aapitchtempo,N octave,N note,D fine);
  B aaAudioPitchShiftInit               (_aapitchshift*aapitchshift,N framesize,B oversample);
@@ -6077,6 +6085,21 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 
 /*-----------------------------------------------------------------------*/
 
+
+ #define ULAW_MUCLIP                   32635
+ #define ULAW_BIAS                     0x84
+ #define ULAW_MUZERO                   0x02
+ #define ULAW_ZEROTRAP
+
+ #define ALAW_QUANT_MASK               (0xf)
+ #define ALAW_NSEGS                    (8)
+ #define ALAW_SEG_SHIFT                (4)
+
+ B aaLawEncode                         (B isulaw,IP sptr,BP uptr,Z sinc,Z uinc,H len);
+ B aaLawDecode                         (B isulaw,BP uptr,IP sptr,Z uinc,Z sinc,H len);
+
+/*-----------------------------------------------------------------------*/
+
  #define aaMathDegreesToRadians(d)     (d*aaPi/180.0)
  #define aaMathRadiansToDegrees(r)     (r*180.0/aaPi)
 
@@ -6134,6 +6157,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  D aaMathSqrt                          (D x);
  D aaMathFloor                         (D x);
  D aaMathCeil                          (D x);
+ B aaMathNormFactorCalc                (D maxamp,D targetdbfs,D peak,DP result);
 
 
 /*-----------------------------------------------------------------------*/
@@ -6209,11 +6233,14 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  }
  _textreader;
 
+
+
  B aaTextReaderNew                     (_textreader*textreader,H bytes,VP mem);
  B aaTextReaderOpen                    (_textreader*textreader,VP filename,H startline,H maxlines);
  B aaTextReaderDelete                  (_textreader*textreader);
  B aaTextReaderLineGet                 (_textreader*textreader,H line,HP chars,VP txt);
  B aaTextReaderLineFind                (_textreader*textreader,H from,HP line,VP aft,VP fmt,...);
+ B aaTextReaderDump                    (_textreader*textreader,B(*proc)(_textreader*,H,H,VP));
 
 
 
@@ -6593,7 +6620,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
   Z elm_parent;
   Z open_line;
   Z close_line;
-     Z parent_line;
+ Z parent_line;
  Z depth;
  H bytes;
  B type;
@@ -6639,6 +6666,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaJsonDestroy                       (H handle);
  B aaJsonStatus                        (H handle,_jsonstatus*jsonstatus);
  B aaJsonReset                         (H handle,B encflag);
+ B aaJsonAppend                        (H handle,VP str);
  B aaJsonAppendf                       (H handle,VP fmt,...);
  B aaJsonAppendBytes                   (H handle,H bytes,VP data);
  B aaJsonDecode                        (H handle);
@@ -6671,7 +6699,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaJsonDecoderBegin                  (H handle,H bytes,VP data);
  B aaJsonDecoderYield                  (H handle,B wait,_jsonstatus*jsonstatus);
 
-
+ B aaJsonToTextReader                  (H bytes,VP data,_textreader*textreader);
 
 /*-----------------------------------------------------------------------*/
  //E{ HTML_ROW_FLAG_OPEN=1,      HTML_ROW_FLAG_CLOSE=2,    HTML_ROW_FLAG_SELF=4,      HTML_ROW_FLAG_DOC=8,     HTML_ROW_FLAG_COMMENT=16,   HTML_ROW_FLAG_TEXT=32,     HTML_ROW_FLAG_JS=64,      HTML_ROW_FLAG_CSS=128, };
@@ -6853,19 +6881,22 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  #define aa_IPCSTATE_Release           2
  #define aa_IPCSTATE_Both              3
 
+
  structure
  {
- B is_root;
+ B is_host;
  B is_locked;
  B is_exited;
  B name[129];
  Q session;
-// H index;
- H bytes;
+ H fmo;
  H hog_level;
+ H bytes;
  BP ram;
  }
  _ipcstatus;
+
+
 
  structure
  {
@@ -6877,10 +6908,12 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 
  B aaIpcCreate                         (HP handle,H bytes,VP name,...);
  B aaIpcDestroy                        (H handle);
- B aaIpcStatus                         (H handle,_ipcstatus*ipcstatus,B state);
- B aaIpcWrite                          (H handle,_ipcstatus*ipcstatus,H offset,H bytes,VP data);
- B aaIpcWritef                         (H handle,_ipcstatus*ipcstatus,H offset,VP fmt,...);
- B aaIpcRead                           (H handle,_ipcstatus*ipcstatus,H offset,H bytes,VP data);
+ B aaIpcStatus                         (H handle,_ipcstatus*ipcstatus);
+ B aaIpcLock                           (H handle);
+ B aaIpcRelease                        (H handle);
+ B aaIpcRead                           (H handle,QP from,H bytes,VP data);
+ B aaIpcWrite                          (H handle,H bytes,VP data);
+
 
 
 /*-----------------------------------------------------------------------*/
@@ -6970,6 +7003,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  H magic;
  H stage;
  _tcpcallunit call;
+ B auth_token[129];
  _websocketclientcalldata*cd;
  }
  _websocketclient;
@@ -7003,8 +7037,8 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  H cur_calls;
  Q tot_calls;
  _netadr adr;
- H port_iter0;
- H port_iter1;
+ //H port_iter0;
+// H port_iter1;
  _tcpportunit port;
  _tcpcallunit call;
  _websocketservercalldata*scd;
@@ -7015,7 +7049,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 /*-----------------------------------------------------------------------*/
 
 
- B aaNetWebsocketClientNew             (_websocketclient*websocketclient,H sip,W sport,VP host,H ip,W port,B istls,VP fmt,...);
+ B aaNetWebsocketClientNew             (_websocketclient*websocketclient,H sip,W sport,VP host,H ip,W port,B istls,VP authtok,VP fmt,...);
  B aaNetWebsocketClientDelete          (_websocketclient*websocketclient);
  B aaNetWebsocketClientYield           (_websocketclient*websocketclient);
  B aaNetWebsocketClientClose           (_websocketclient*websocketclient);
@@ -7025,10 +7059,11 @@ VP aaf                                (VP buf,H off,VP fmt,...);
 
  B aaNetWebsocketServerNew             (_websocketserver*websocketserver,H ip,W port,H maxcalls);
  B aaNetWebsocketServerDelete          (_websocketserver*websocketserver);
- B aaNetWebsocketServerYield           (_websocketserver*websocketserver);
+ B aaNetWebsocketServerYield           (_websocketserver*websocketserver,H callhandle);
  B aaNetWebsocketServerCallSet         (_websocketserver*websocketserver,H callhandle);
- B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver);
  B aaNetWebsocketServerCallClose       (_websocketserver*websocketserver);
+ B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver,HP iter);////,HP callhandle,_tcpcallstatus*callstatus);
+ B aaNetWebsocketServerYield           (_websocketserver*websocketserver,H callhandle);
  B aaNetWebsocketServerPktPeek         (_websocketserver*websocketserver,_websockethdr*websockethdr,VP data);
  B aaNetWebsocketServerPktRead         (_websocketserver*websocketserver,_websockethdr*websockethdr,VP data);
  B aaNetWebsocketServerPktWrite        (_websocketserver*websocketserver,B oc,B ff,H bytes,VP data);

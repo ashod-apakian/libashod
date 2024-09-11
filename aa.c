@@ -49,7 +49,7 @@ linker options
 
 /*-----------------------------------------------------------------------*/
 
- B appLog                              (H index,H lines,VP fmt,...);
+ B appLog                              (H index,H lines,H plus,VP fmt,...);
 
  H aa_note_kill_count                  =0;
  H aa_note_show_count                  =0;
@@ -60,7 +60,7 @@ linker options
  H aa_last_line_executed               =__LINE__;
  H aa_user_line_executed               =0;
 
- #define aa_VERSION                    307
+ #define aa_VERSION                    308
 
 /*-----------------------------------------------------------------------*/
 
@@ -358,7 +358,7 @@ linker options
  T BOOL   (WINAPI *getOpenFileName)    (OPENFILENAME*);
  T DWORD  (NTAPI  *NTQueryInformationProcess) (HANDLE,DWORD,PVOID,DWORD,PDWORD);
  T BOOL   (WINAPI *getCurrentThreadStackLimits) (PULONG_PTR,PULONG_PTR);
-
+ T DWORD  (NTAPI  *NTQueryObject)      (HANDLE,DWORD,PVOID,ULONG,PULONG);
 
 
  BOOL CALLBACK MonitorEproc            (HANDLE hmon,HDC hdc,LPRECT rcmon,LPARAM data)
@@ -506,6 +506,7 @@ linker options
  getOpenFileName GetOpenFileName;
  NTQueryInformationProcess ntQueryInformationProcess;
  getCurrentThreadStackLimits GetCurrentThreadStackLimits;
+ NTQueryObject ntQueryObject;
 
  Q perf_frequency;
  Q perf_frequency_ms;
@@ -6494,8 +6495,81 @@ fail:
  B aa_AudioStatus                      (PP ptr,B dochannels);
 
 
+/*-----------------------------------------------------------------------*/
+
+ C exp_lut[128]={0,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
+	    6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
+	    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+	    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7};
 
 
+
+ I ulaw_decode[256]=
+ {
+ -32124,-31100,-30076,-29052,-28028,-27004,-25980,-24956,
+ -23932,-22908,-21884,-20860,-19836,-18812,-17788,-16764,
+ -15996,-15484,-14972,-14460,-13948,-13436,-12924,-12412,
+ -11900,-11388,-10876,-10364, -9852, -9340, -8828, -8316,
+  -7932, -7676, -7420, -7164, -6908, -6652, -6396, -6140,
+  -5884, -5628, -5372, -5116, -4860, -4604, -4348, -4092,
+  -3900, -3772, -3644, -3516, -3388, -3260, -3132, -3004,
+  -2876, -2748, -2620, -2492, -2364, -2236, -2108, -1980,
+  -1884, -1820, -1756, -1692, -1628, -1564, -1500, -1436,
+  -1372, -1308, -1244, -1180, -1116, -1052,  -988,  -924,
+   -876,  -844,  -812,  -780,  -748,  -716,  -684,  -652,
+   -620,  -588,  -556,  -524,  -492,  -460,  -428,  -396,
+   -372,  -356,  -340,  -324,  -308,  -292,  -276,  -260,
+   -244,  -228,  -212,  -196,  -180,  -164,  -148,  -132,
+   -120,  -112,  -104,   -96,   -88,   -80,   -72,   -64,
+    -56,   -48,   -40,   -32,   -24,   -16,    -8,     0,
+  32124, 31100, 30076, 29052, 28028, 27004, 25980, 24956,
+  23932, 22908, 21884, 20860, 19836, 18812, 17788, 16764,
+  15996, 15484, 14972, 14460, 13948, 13436, 12924, 12412,
+  11900, 11388, 10876, 10364,  9852,  9340,  8828,  8316,
+   7932,  7676,  7420,  7164,  6908,  6652,  6396,  6140,
+   5884,  5628,  5372,  5116,  4860,  4604,  4348,  4092,
+   3900,  3772,  3644,  3516,  3388,  3260,  3132,  3004,
+   2876,  2748,  2620,  2492,  2364,  2236,  2108,  1980,
+   1884,  1820,  1756,  1692,  1628,  1564,  1500,  1436,
+   1372,  1308,  1244,  1180,  1116,  1052,   988,   924,
+    876,   844,   812,   780,   748,   716,   684,   652,
+    620,   588,   556,   524,   492,   460,   428,   396,
+    372,   356,   340,   324,   308,   292,   276,   260,
+    244,   228,   212,   196,   180,   164,   148,   132,
+    120,   112,   104,    96,    88,    80,    72,    64,
+     56,    48,    40,    32,    24,    16,     8,     0 };
+
+
+
+
+ I alaw_decode[256]=
+ {
+  -5504, -5248,  -6016,  -5760, -4480, -4224, -4992, -4736, -7552, -7296,
+  -8064, -7808,  -6528,  -6272, -7040, -6784, -2752, -2624, -3008, -2880,
+  -2240, -2112,  -2496,  -2368, -3776, -3648, -4032, -3904, -3264, -3136,
+  -3520, -3392, -22016, -20992,-24064,-23040,-17920,-16896,-19968,-18944,
+ -30208,-29184, -32256, -31232,-26112,-25088,-28160,-27136,-11008,-10496,
+ -12032,-11520,  -8960,  -8448, -9984, -9472,-15104,-14592,-16128,-15616,
+ -13056,-12544, -14080, -13568,  -344,  -328,  -376,  -360,  -280,  -264,
+   -312,  -296,   -472,   -456,  -504,  -488,  -408,  -392,  -440,  -424,
+    -88,   -72,   -120,   -104,   -24,    -8,   -56,   -40,  -216,  -200,
+   -248,  -232,   -152,   -136,  -184,  -168, -1376, -1312, -1504, -1440,
+  -1120, -1056,  -1248,  -1184, -1888, -1824, -2016, -1952, -1632, -1568,
+  -1760, -1696,   -688,   -656,  -752,  -720,  -560,  -528,  -624,  -592,
+   -944,  -912,  -1008,   -976,  -816,  -784,  -880,  -848,  5504,  5248,
+   6016,  5760,   4480,   4224,  4992,  4736,  7552,  7296,  8064,  7808,
+   6528,  6272,   7040,   6784,  2752,  2624,  3008,  2880,  2240,  2112,
+   2496,  2368,   3776,   3648,  4032,  3904,  3264,  3136,  3520,  3392,
+  22016, 20992,  24064,  23040, 17920, 16896, 19968, 18944, 30208, 29184,
+  32256, 31232,  26112,  25088, 28160, 27136, 11008, 10496, 12032, 11520,
+   8960,  8448,   9984,   9472, 15104, 14592, 16128, 15616, 13056, 12544,
+  14080, 13568,    344,    328,   376,   360,   280,   264,   312,   296,
+    472,   456,    504,    488,   408,   392,   440,   424,    88,    72,
+    120,   104,     24,      8,    56,    40,   216,   200,   248,   232,
+    152,   136,    184,    168,  1376,  1312,  1504,  1440,  1120,  1056,
+   1248,  1184,   1888,   1824,  2016,  1952,  1632,  1568,  1760,  1696,
+    688,   656,    752,    720,   560,   528,   624,   592,   944,   912,
+   1008,   976,    816,    784,   880,   848 };
 
 /*-----------------------------------------------------------------------*/
 
@@ -7372,15 +7446,18 @@ fail:
 
 /*-----------------------------------------------------------------------*/
 
+
+
  structure
  {
- H self_handle;
- H total_bytes;
- H user_bytes;
- H lock_deny_count;
- B rsvd[1016];
+ ULONG       Attributes;
+ ACCESS_MASK GrantedAccess;
+ ULONG       HandleCount;
+ ULONG       PointerCount;
+ ULONG       Reserved[10];
  }
- _ipcramhdr;
+ _aa_PUBLIC_OBJECT_BASIC_INFORMATION;
+
 
 
  structure
@@ -7496,6 +7573,7 @@ fail:
  B aa_is_quit_called=NO;
  B aa_is_quit_received=NO;
  B aa_is_esc=NO;
+ B aa_key_down=0;
  H aa_ie_events_waiting=0;
  H aa_ie_events_waiting_threshold=0;
  B aa_is_morph_pending=0;
@@ -8899,6 +8977,9 @@ fail:
  }
 
 
+
+
+
  B aa_CoreSystemStart                  (HINSTANCE thisinst,HINSTANCE previnst,LPSTR cmdline,int cmdshow)
  {
  HDC dc;
@@ -9006,8 +9087,8 @@ fail:
  if((aa.core_system.GetOpenFileName=(getOpenFileName)GetProcAddress(aa.core_system.comdlg_module,"GetOpenFileNameA"))==NULL) { oof; return RET_FAILED; }
  if((aa.core_system.ntQueryInformationProcess=(NTQueryInformationProcess)GetProcAddress(aa.core_system.ntdll_module,"NtQueryInformationProcess"))==NULL) { oof; return RET_FAILED; }
   ///if((aa.core_system.WSASetSocketSecurity=(wsaSetSocketSecurity)GetProcAddress(aa.core_system.wpu_module,"WSASetSocketSecurity"))==NULL) { oof; return RET_FAILED; }
-
  if((aa.core_system.GetCurrentThreadStackLimits=(getCurrentThreadStackLimits)GetProcAddress(aa.core_system.kernel_module,"GetCurrentThreadStackLimits"))==NULL) { oof; return RET_FAILED; }
+ if((aa.core_system.ntQueryObject=(NTQueryObject)GetProcAddress(aa.core_system.ntdll_module,"NtQueryObject"))==NULL) { oof; return RET_FAILED; }
 
 
  aa_CoreSystemLogStateSet(YES);
@@ -9359,6 +9440,11 @@ fail:
      aa_InputSystemKeyEventProc(wnd,msg,wparm,lparm,0);
      }
     }
+   if(msg==WM_KEYUP)
+    {
+    aa_key_down=wparm;
+    }
+
    if(msg==WM_KEYDOWN&&wparm==VK_ESCAPE)
     {
     if(aa_is_esc==NO)
@@ -14723,6 +14809,7 @@ redo:
  if(memhdr->mini_type!='G') { oof; }
  if(GlobalFree(memhdr->actual_ptr)!=NULL)
   {
+  oow;
   logg("%s:%i globalfree problem",__func__,__LINE__);
   aaNote(0,"%s:%i bytes=%i %s %i,%i",__func__,__LINE__,bytes,memhdr->name,aa.memory_system.status.blocks_allocated,aa.memory_system.status.bytes_allocated);
   return RET_FAILED;
@@ -19256,6 +19343,14 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    {
    }
   aaLog(-555,"aa_objectUndefine(%-3i) instance_slots=%-5i instance_count=%-5i (%s)",id,aa.object_system.object[id].instance_slots,aa.object_system.object[id].instance_count,aa.object_system.object[id].name);
+  for(h=0;h<aa.object_system.object[id].instance_slots;h++)
+   {
+   if(aa.object_system.object[id].instance_count==0) { break; }
+   if(aa_ObjectCheck((B)id,base+h,NULL,&isprot)==RET_YES)
+    {
+    //aaLog(-555,"not released, handle=%i index=%i",base+h,h);
+    }
+   }
   }
  aa_last_line_executed=__LINE__;
  if(id==aa.surface_system.object_id)
@@ -19281,7 +19376,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
    if(aa.object_system.object[id].instance_count==0) { break; }
    if(aa_ObjectCheck((B)id,base+h,NULL,&isprot)==RET_YES)
     {
-    aaLog(-555,"still %i",base+h);
+    //aaLog(-555,"still %i",base+h);
     if(isprot) { aa_ObjectProtect(id,base+h,NO); }
     if(aa.object_system.object[id].Destructor)   { aa.object_system.object[id].Destructor(base+h);  }
     else                                         { aa_ObjectDestroy((B)id,base+h);   }
@@ -21386,7 +21481,7 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
       }
      else
       {
-      aaNote(0,"tls err %i",ctx->err_code);
+      //aaNote(0,"tls err %i",ctx->err_code);
       if(calp->status.is_closed_by_remote!=YES) aaTimerTikGet(&calp->remote_closed_ms_root);
       calp->status.is_closed_by_remote=YES;
 
@@ -21979,7 +22074,11 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
 
  aaCast(calp,_aa_nettcpcallobject*,*ptr);
  aaCast(ctx,_aa_nettcpcall_tls_ctx*,&calp->tls_ctx);
- if(ctx->state<=0) { aaNote(0,"tlssend state=%i",ctx->state); return -1; }
+ if(ctx->state<=0)
+  {
+  //aaNote(0,"tlssend state=%i",ctx->state);
+  return -1;
+  }
  if(ctx->is_attached!=YES)    { oof; }
  if(calp->status.is_tls!=YES) { oof; }
  //appLog(0,F32,"tlsssend %i",size);
@@ -23998,7 +24097,7 @@ BP aa_PngToMem                         (BP pixels,B quality,Z stride_bytes,Z x,Z
  for(bits=1; bits<=tree->maxbitlen; bits++) {	nextcode[bits]=(nextcode[bits-1]+blcount[bits-1])<<1;	}
  for(n=0; n<tree->numcodes; n++) { if(bitlen[n]!=0) {tree1d[n]=nextcode[bitlen[n]]++; } }
  for(n=0; n<tree->numcodes*2; n++) { tree->tree2d[n]=32767;}
- for  (n=0; n<tree->numcodes; n++)
+ for(n=0; n<tree->numcodes; n++)
   {
   for(i=0;i<bitlen[n]; i++)
    {
@@ -27270,12 +27369,12 @@ aaInputEngine calls aaInputStateGet
  if(fix)
   {
   audiomode->mode=m;
-  audiomode->rate=r;
+  //audiomode->rate=r;
   audiomode->bps=b;
   }
 
  if(audiomode->mode!=m) {  return RET_FAILED;  }
- if(audiomode->rate!=r) {  return RET_FAILED;  }
+// if(audiomode->rate!=r) {  return RET_FAILED;  }
  if(audiomode->bps!=b)  {  return RET_FAILED;  }
 
  return RET_YES;
@@ -37647,12 +37746,12 @@ else
 static const htmlentity_t ent[] =
 {
 	{ "lt",     "<" },	{ "gt",     ">" },	{ "amp",    "&" },	{ "apos",   "'" },
-	{ "quot",   "\"" },	{ "aacute", "á" },	{ "eacute", "é" },	{ "iacute", "é" },
-	{ "oacute", "ó" },	{ "uacute", "ú" },	{ "agrave", "à" },	{ "egrave", "è" },
-	{ "igrave", "ì" },	{ "ograve", "ò" },	{ "ugrave", "ù" },	{ "acirc",  "â" },
-	{ "ecirc",  "ê" },	{ "icirc",  "î" },	{ "ocirc",  "ô" },	{ "ucirc",  "û" },
-	{ "auml",   "ä" },	{ "euml",   "ë" },	{ "iuml",   "ï" },	{ "ouml",   "ö" },
-	{ "uuml",   "ü" },	{ "nbsp",   " " },	{ "",        ""  }
+	{ "quot",   "\"" },	{ "aacute", "Ã¡" },	{ "eacute", "Ã©" },	{ "iacute", "Ã©" },
+	{ "oacute", "Ã³" },	{ "uacute", "Ãº" },	{ "agrave", "Ã " },	{ "egrave", "Ã¨" },
+	{ "igrave", "Ã¬" },	{ "ograve", "Ã²" },	{ "ugrave", "Ã¹" },	{ "acirc",  "Ã¢" },
+	{ "ecirc",  "Ãª" },	{ "icirc",  "Ã®" },	{ "ocirc",  "Ã´" },	{ "ucirc",  "Ã»" },
+	{ "auml",   "Ã¤" },	{ "euml",   "Ã«" },	{ "iuml",   "Ã¯" },	{ "ouml",   "Ã¶" },
+	{ "uuml",   "Ã¼" },	{ "nbsp",   " " },	{ "",        ""  }
 };
 
 */
@@ -37850,6 +37949,7 @@ static const htmlentity_t ent[] =
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
+
  if(lines)     { *lines=0; }
  if(lineoff)   { *lineoff=0; }
  if(linechars) { *linechars=0; }
@@ -37911,7 +38011,7 @@ static const htmlentity_t ent[] =
  if(lines) { *lines=ln; }
  if(ln!=0)
   {
-  if(lineoff) { *lineoff=lnof; }
+  if(lineoff)   { *lineoff=lnof;   }
   if(linechars) { *linechars=lnch; }
   }
  return RET_YES;
@@ -39374,11 +39474,14 @@ static const htmlentity_t ent[] =
   {
   v=val;
   if(val<1024)       { aaStringCopyf(str,"%.0f",v); break; }
-  v=val/1048576.0;
+  v=val/1024.0;
+  //v=val/1048576.0;
   if(val<1048576)    { aaStringCopyf(str,"%.1fKb",v); break; }
-  v=val/1073741824.0;
+  //v=val/1073741824.0;
+  v=val/1048576.0;
   if(val<1073741824) { aaStringCopyf(str,"%.1fMb",v); break; }
-  v=val/1073741824000.0;
+  v=val/1073741824.0;
+  //v=val/1073741824000.0;
   aaStringCopyf(str,"%.1fGb",v);
   break;
   }
@@ -46284,6 +46387,22 @@ soff=moff=stage=0;
 
 
 
+ B aaMathNormFactorCalc                (D maxamp,D targetdbfs,D peak,DP result)
+ {
+ D targetamp,res;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(maxamp==0)     { maxamp=32767.0;  }
+ if(targetdbfs==0) { targetdbfs=-1.0; }
+ targetamp=maxamp*pow(10.0,targetdbfs/20.0);
+ res=targetamp/peak;
+ if(result) { *result=res; }
+ return RET_YES;
+ }
+
+
 
 
 /*-----------------------------------------------------------------------*/
@@ -47633,7 +47752,7 @@ soff=moff=stage=0;
  BP bp;
 
  #ifdef aa_VERSION
- ///aa_ZIAG(__FUNCTION__);
+ aa_ZIAG(__FUNCTION__);
  #endif
  if(ministack==NULL) { return RET_BADPARM; }
  if(ministack->magic!=aa_MINISTACK_MAGIC) { return RET_NOTSTARTED; }
@@ -47671,7 +47790,7 @@ soff=moff=stage=0;
  B aaMiniStackPushDword                (_ministack*ministack,H val)
  {
  #ifdef aa_VERSION
-// aa_ZIAG(__FUNCTION__);
+ aa_ZIAG(__FUNCTION__);
  #endif
  return(aaMiniStackPush(ministack,4,&val));
  }
@@ -47768,7 +47887,7 @@ soff=moff=stage=0;
  H off;
 
  #ifdef aa_VERSION
-// aa_ZIAG(__FUNCTION__);
+ aa_ZIAG(__FUNCTION__);
  #endif
  if(ministack==NULL) { return RET_BADPARM; }
  if(ministack->magic!=aa_MINISTACK_MAGIC) { return RET_NOTSTARTED; }
@@ -47806,7 +47925,7 @@ soff=moff=stage=0;
  B aaMiniStackPopDword                 (_ministack*ministack,HP val)
  {
  #ifdef aa_VERSION
- //aa_ZIAG(__FUNCTION__);
+ aa_ZIAG(__FUNCTION__);
  #endif
  return(aaMiniStackPop(ministack,4,val));
  }
@@ -47986,6 +48105,9 @@ soff=moff=stage=0;
  #endif
  return(aaMiniStackPeek(ministack,offset,4,val));
  }
+
+
+
  B aaMiniStackPeekQuad                 (_ministack*ministack,H offset,QP val)
  {
  #ifdef aa_VERSION
@@ -53119,11 +53241,11 @@ oof;
 /*-----------------------------------------------------------------------*/
 
 
-
- B aaNetWebsocketInit                  (_websocket*websocket,H tcpcallhandle,VP fmt,...)
+ B aaNetWebsocketInit                  (_websocket*websocket,H tcpcallhandle,VP authtok,VP fmt,...)
  {
  B ret;
  _tcpcallstatus cs;
+ BP bp;
 
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
@@ -53139,6 +53261,14 @@ oof;
   {
   if(str16k.buf[0]==NULL_CHAR) { return RET_MISSINGPARM; }
   aaStringCopyf(websocket->url,"%s",str16k.buf);
+  if(authtok!=NULL)
+   {
+   bp=(BP)authtok;
+   if(bp[0]!=NULL_CHAR)
+    {
+    aaStringCopy(websocket->auth_token,authtok);
+    }
+   }
   }
  websocket->stage=WEBSOCKET_STAGE_HANDSHAKE;
  return RET_YES;
@@ -53222,9 +53352,6 @@ oof;
       break;
       }
      if(aaNetHttpHeaderReadFromString(&hed,chars,buf)!=YES) { break; }
-    // aaDebugf("wock http field %i %s = %s",hed.field_code,hed.field,hed.data);
-     ///aaDebugf("src_dot=%s , loc_dot=%s, rem_dot=%s",cs.src_dot,cs.local_dot,cs.remote_dot);
-
      if(hed.field_code==aa_HTTPFIELD_XFORWARDEDFOR)
       {
       if(chars>63) { aaNote(0,"chars=%i %s = %s",chars,hed.field,hed.data); }
@@ -53279,6 +53406,7 @@ oof;
     switch(websocket->phaze)
      {
      case 0:
+     ///appLog(0,F32,0,"%s is_dg=%i",__func__,websocket->is_dg);
      aaStringRandomSet(buf,16,1,1,1,YES);
      if(aaBase64Encode(buf,0,str,&sl)!=YES) oof;
      aaStringCopyf(websocket->out_key,"%s",str);
@@ -53299,16 +53427,21 @@ oof;
      aaStringAppendfCrlf(buf,"GET %s HTTP/1.1",websocket->url);
      //aaStringAppendfCrlf(buf,"GET ws://192.168.1.107:4456/ws/demo/ HTTP/1.1",websocket->url);
      ///aaStringAppendfCrlf(buf,"GET %s HTTP/1.1",websocket->url);
-     if(cs.host[0]!=NULL_CHAR)  {   aaStringAppendfCrlf(buf,"Host: %s:%u",cs.host,cs.remote_adr.port);     }
+     //if(cs.host[0]!=NULL_CHAR)  {   aaStringAppendfCrlf(buf,"Host: %s:%u",cs.host,cs.remote_adr.port);     }
+     if(cs.host[0]!=NULL_CHAR)  {   aaStringAppendfCrlf(buf,"Host: %s",cs.host,cs.remote_adr.port);     }
      else                       {   aaStringAppendfCrlf(buf,"Host: %s",cs.remote_dot);     }
      //aaStringAppendfCrlf(buf,"Host: 192.168.1.107:4456");//,cs.remote_dot);
      aaStringAppendfCrlf(buf,"Connection: Upgrade");
      aaStringAppendfCrlf(buf,"Upgrade: websocket");
      aaStringAppendfCrlf(buf,"Sec-WebSocket-Version: 13");
      aaStringAppendfCrlf(buf,"Sec-WebSocket-Key: %s",websocket->out_key);
-     if(aaNetTcpCallWritef(websocket->tcp_handle,"%s\r\n",buf)!=YES) break;
-     //aaDebugf("client sent");
-     //aaDebugf("%s",buf);
+     //if(aaStringICompare(cs.host,"api.deepgram.com",0)==YES)
+     if(websocket->auth_token[0])
+      {
+      aaStringAppendfCrlf(buf,"Authorization: %s",websocket->auth_token);
+      //aaStringAppendfCrlf(buf,"Authorization: Token 72d69cb7f8a3029cfbb2e6d1f8033d387a4e225b");
+      }
+     if(aaNetTcpCallWritef(websocket->tcp_handle,"%s\r\n",buf)!=YES) { oof; break; }
      websocket->phaze=20;
      break;
 
@@ -53316,8 +53449,7 @@ oof;
      case 26:
      //aaDebugf(".. rb=%i trb=%I64d",cs.rcve_bytes,cs.rcve_bytes_total);
      if((ret=aaNetTcpCallStringRead(websocket->tcp_handle,&chars,0,sizeof(buf)-2,buf))!=YES)    {      break;      }
-     //aaDebugf("%i %s",chars,buf);
-     ///aaDebugf("client phaze=%i chars=%i buf=[%s]",websocket->phaze,chars,buf);
+//     appLog(0,F32,0,"client phaze=%i chars=%i buf=[%s]",websocket->phaze,chars,buf);
      if(chars>400)
       {
       websocket->is_failure=YES;
@@ -53338,7 +53470,6 @@ oof;
      websocket->pong_xmit_last_ms=0;//aaMsRunning();
      websocket->ping_rcve_last_ms=0;//aaMsRunning();
      websocket->pong_rcve_last_ms=0;//aaMsRunning();
-
   //   websocket->ping_last_ms=0;//aaMsRunning();
 //     websocket->pong_last_ms=0;//aaMsRunning();
      websocket->is_open=YES;
@@ -56203,8 +56334,8 @@ oof;
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
- if(chars) *chars=0;
- if(stringmode) *stringmode=0;
+ if(chars)      { *chars=0; }
+ if(stringmode) { *stringmode=0; }
  if((ret=aa_ObjectCheck(aa.net_system.tcpcall_object_id,handle,(VP)&calp,NULL))!=RET_YES) {return ret; }
  ret=aaNetTcpCallStringLook(handle,0,0,0,&off,&len,&mo,maxchars,buf);
  if(chars)      { *chars=len;     }
@@ -61908,6 +62039,7 @@ oof;
  B is_folder,found;
  BP file_mem;
  B ot[4];
+ //B cio[_1K];
  _aa_ttfoffsettable     ttf_ofsettable;
  _aa_ttftabledirectory  ttf_tabledir;
  _aa_ttfnametableheader ttf_nametablehdr;
@@ -62148,7 +62280,12 @@ oof;
   if((oldobj=SelectObject(dc,hfnt))==0)                              { oow; fail_state=3; break; }
   if(GetTextFace(dc,64,fntp->status.face_name)==0)                   { oow; fail_state=4; break; }
   aaStringICompare(facetext,fntp->status.face_name,&res);
-  if(res!=0)                                                         {  fail_state=4; break; }
+  if(res!=0&&0)
+   {
+   aaNote(0,"%s %s",facetext,fntp->status.face_name);
+   fail_state=4;
+   break;
+   }
 
   if(GetCharABCWidths(dc,0,255,charABCWidth)==FALSE)
    {
@@ -62187,7 +62324,27 @@ oof;
    //SetBkMode(dc,TRANSPARENT);
    //BeginPath(dc);
 
+   /*
+wchar_t wchBuff[100];
+wchBuff[0] = 0x65e5;
+	wchBuff[1] = 0x672c;
+	wchBuff[2] = 0x8a9e;
+	wchBuff[3] = 0x3067;
+	wchBuff[4] = 0x66f8;
+	wchBuff[5] = 0x304d;
+	wchBuff[6] = 0x307e;
+	wchBuff[7] = 0x3057;
+	wchBuff[8] = 0x3087;
+	wchBuff[9] = 0x3046;
+	wchBuff[10] = 0x0000;
+   aaStringCopyf(cio,"ä½ å¥½");
+
+
+   if(TextOutW(dc,x_pos+0,y_pos,cio,2)==FALSE) { fail_state=9; break; }
+   */
    if(TextOut(dc,x_pos+0,y_pos,(CP)ot,2)==FALSE) { fail_state=9; break; }
+
+
    //EndPath(dc);
    //StrokePath(dc);
 
@@ -72831,7 +72988,7 @@ noscale:
 
 //=--   y=16-240, u=16-240, v=16-240
 //// y=16-234, u=60-180, v=60-180
-//16–235 luma range (and 16–240 chroma range
+//16â€“235 luma range (and 16â€“240 chroma range
 
 
  B aaImageYuv420ToBgra                 (_size*size,Z ystride,Z uvstride,VP yplane,VP uplane,VP vplane,VP dest)
@@ -77838,7 +77995,7 @@ redo:
  audiomode->frequency=saudiomode->frequency;
  audiomode->bits=saudiomode->bits;
  audiomode->channels=saudiomode->channels;
- audiomode->rate=saudiomode->rate;
+ //audiomode->rate=saudiomode->rate;
  audiomode->bps=saudiomode->bps;
  audiomode->mode=saudiomode->mode;
  return RET_YES;
@@ -77972,8 +78129,6 @@ redo:
  if(audiomode->bits>=16&&audiomode->channels>2)
   {
   aaLog(-555,"bad audio format");
-  aaLog(-555,"bits=%i channels=%i srate=%i bytespersample=%i",
-    audiomode->bits,audiomode->channels,audiomode->rate,audiomode->rate*((audiomode->channels)*(audiomode->bits/8)));
   aaQuit();
   return RET_FAILED;
   }
@@ -78400,21 +78555,19 @@ u8       PCM unsigned 8-bit
  else
  if(tempo==1.0)  {  iratio=(D)audioconverter->i_mode.frequency/(audioconverter->o_mode.frequency/tempo);  oratio=1.0;  }
  else
- if(tempo>1.0)   {  oratio=(D)(audioconverter->o_mode.frequency/tempo)/(audioconverter->i_mode.frequency);  iratio=1.0;  }
+ if(tempo>1.0)   { oof;  oratio=(D)(audioconverter->o_mode.frequency/tempo)/(audioconverter->i_mode.frequency);  iratio=1.0;  }
  else
- if(tempo<1.0)   {  iratio=(D)audioconverter->i_mode.frequency/(audioconverter->o_mode.frequency/tempo); oratio=1.0;  }
+ if(tempo<1.0)   { oof; iratio=(D)audioconverter->i_mode.frequency/(audioconverter->o_mode.frequency/tempo); oratio=1.0;  }
  iaccum=0;
  oaccum=0;
  i_pos=0;
  o_pos=0;
  s_16m=(IP)idata;
  s_8m=(BP)idata;
- //prev_o_pos=o_pos;
- //prev_i_pos=i_pos;
   while(1)
    {
    if(i_pos>=todo)    {    break;    }
-//   lv=rv=0;
+   lv=rv=0;
    if(audioconverter->i_mode.channels==2&&audioconverter->i_mode.bits==16) {   lv=(D)(s_16m[(i_pos*2)+0]);    rv=(D)(s_16m[(i_pos*2)+1]);    }
    else
    if(audioconverter->i_mode.channels==1&&audioconverter->i_mode.bits==8)  {   temp_i=((s_8m[(i_pos*1)+0])-128)<<8;   rv=lv=(D)temp_i;    }
@@ -78471,7 +78624,13 @@ u8       PCM unsigned 8-bit
    for(k=0;k<sodo;k++)
     {
     temp_i=(I)aa.audio_system.ch_block[(k*2)+0];
-    pcmi[(k*1)+0]=(I)temp_i;
+    ///pcmi[(k*1)+0]=(I)temp_i;
+    s_8m=(BP)&temp_i;
+    pcmi[k]=((s_8m[0])|(s_8m[1]<<8));//-0x8000;
+    ///pcmi[k]=((s_8m[0]<<8) | (s_8m[1])) - 0x8000;
+    //pcmi[k]=(s_8m[(k*2)+0] | (s_8m[(k*2)+1] << 8)) - 0x8000;
+
+    //pcmi[k]=(src[0] | (src[1] << 8)) - 0x8000;
     }
    }
   else
@@ -78490,6 +78649,21 @@ u8       PCM unsigned 8-bit
    }
   }
  *osamples=(sodo);
+ return RET_YES;
+ }
+
+
+
+ B aaAudioConverterQuick               (_audiomode*imode,H isamples,VP idata,D tempo,_audiomode*omode,HP osamples,VP odata)
+ {
+ B ret;
+ _audioconverter acon;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if((ret=aaAudioConverterInit(&acon,imode,omode))!=YES) { oops; }
+ if((ret=aaAudioConverterProcess(&acon,isamples,idata,tempo,osamples,odata))!=YES) { oops; }
  return RET_YES;
  }
 
@@ -79547,7 +79721,7 @@ u8       PCM unsigned 8-bit
  D ratio;
  //B odata[_64K];
  H dbytes,samples,todo,soff,doff;
- H osamples;
+ H osamples,arate,orate;
  _audioconverter acon;
  _wav dwav;
 
@@ -79591,8 +79765,14 @@ u8       PCM unsigned 8-bit
   {
   if((ret=aaFileStreamOffsetAdjust(fh,(G)skip))!=RET_YES) { aaFileStreamDestroy(fh); return ret;  }
   }
+
  aaAudioModeSet(&am,am.frequency,am.bits,am.channels);
+ ///appLog(0,F32,0,"1am=%i,%i,%i",am.frequency,am.bits,am.channels);
  if((ret=aaAudioModeIsValid(&am))!=YES)           { aaFileStreamDestroy(fh); return RET_FAILED;  }
+ ///appLog(0,F32,0,"3am=%i,%i,%i %i,%i,%i",am.frequency,am.bits,am.channels,am.rate,am.bps,am.mode);
+ //if(aaAudioModeCopy(audiomode,&am)!=YES) oof;
+ //aaAudioModeSet(audiomode,48000,16,1);
+
  if((ret=aaFileStreamRead(fh,4,ch))!=RET_YES)     { aaFileStreamDestroy(fh); return ret;  }
  while(1)
   {
@@ -79610,22 +79790,37 @@ u8       PCM unsigned 8-bit
  aaFileStreamDestroy(fh);
  wav->ptr=mem;
 
- aaMemoryCopy(&wav->o_mode,sizeof(_audiomode),&am);
+ //aMemoryCopy(&wav->o_mode,sizeof(_audiomode),&am);
+ aaAudioModeCopy(&wav->o_mode,&am);
  wav->duration=(D)wav->samples/((D)wav->o_mode.frequency/1000.0);
+
+ //if(aaAudioModeCopy(audiomode,&am)!=YES) oof;
+ //appLog(0,F32,0,"3am=%i,%i,%i %i,%i,%i",am.frequency,am.bits,am.channels,am.rate,am.bps,am.mode);
 
  if(audiomode==NULL)  {  aaAudioModeCopy(&wav->a_mode,&wav->o_mode);  }
  else                 {  aaAudioModeCopy(&wav->a_mode,audiomode);  }
 
  if(aaAudioModeEqualsAudioMode(&wav->a_mode,&wav->o_mode)==NO)
   {
+  arate=wav->a_mode.frequency;
+  orate=wav->o_mode.frequency;
+  if(wav->a_mode.bits==16)    { arate*=2; }
+  if(wav->a_mode.channels==2) { arate*=2; }
+  if(wav->o_mode.bits==16)    { orate*=2; }
+  if(wav->o_mode.channels==2) { orate*=2; }
+
   wav->is_converted=YES;
-  if(wav->o_mode.rate>wav->a_mode.rate)   {   ratio=(D)wav->o_mode.rate/(D)wav->a_mode.rate; }
-  else                                    {   ratio=(D)wav->a_mode.rate/(D)wav->o_mode.rate; }
+  //if(wav->o_mode.rate>wav->a_mode.rate)   {   ratio=(D)wav->o_mode.rate/(D)wav->a_mode.rate; }
+  //else                                    {   ratio=(D)wav->a_mode.rate/(D)wav->o_mode.rate; }
+  if(orate>arate)   {   ratio=(D)orate/(D)arate; }
+  else              {   ratio=(D)arate/(D)orate; }
+
   dbytes=wav->samples;
   ratio=dbytes*ratio;
   dbytes=(H)ratio;
   dbytes=dbytes*wav->a_mode.bps;
   dbytes+=_32K;
+  ///appLog(0,F32,0,"needs conv %i,%i=%.2f",wav->o_mode.frequency,wav->a_mode.frequency,ratio);
   if((ret=aaAudioConverterInit(&acon,&wav->o_mode,&wav->a_mode))!=YES) { oops; }
   aaMemoryCopy(&dwav,sizeof(dwav),wav);
 //  aaMemoryCopy(&dwav.a_mode,sizeof(_audiomode),audiomode);
@@ -79726,6 +79921,7 @@ u8       PCM unsigned 8-bit
  parm1=*(GP)&wav->user_data[9];
  UNUSE(parm0);
  UNUSE(parm1);
+ //appLog(0,F32,0,"mo=%i",wav->a_mode.bps);
  while(1)
   {
   if(samples==0) { break; }
@@ -79752,6 +79948,7 @@ u8       PCM unsigned 8-bit
    od=od+(todo*wav->a_mode.bps);
    //aaLog(-555,"... %i",todo);
    }
+  wav->offset%=wav->samples;
 
   }
  return RET_YES;
@@ -80079,6 +80276,109 @@ u8       PCM unsigned 8-bit
   out_data[out_offset++]=is;//(I)sample_val;
   //out_data[out_offset++]=(I)sample_val;
   if(toner->amode.channels==2) { out_data[out_offset++]=is;   }
+  }
+ return RET_YES;
+ }
+
+
+/*-----------------------------------------------------------------------*/
+
+
+
+
+ B aaLawEncode                         (B isulaw,IP sptr,BP uptr,Z sinc,Z uinc,H len)
+ {
+ REG Z longsmp,n,sign,linear,seg;
+ REG Z sample,exponent,mantissa,ulawbyte;
+ REG IP sp;
+ REG BP up;
+ B aval,mask;
+ static I seg_aend[ALAW_NSEGS]={0x1f,0x3f,0x7f,0xff,0x1ff,0x3ff,0x7ff,0xfff};
+ H i;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(isulaw)
+  {
+  n =len;
+  sp=sptr;
+  up=uptr;
+  while(n--)
+   {
+   if((longsmp=*sp)<0) { sign=0x80;   longsmp=-longsmp;  }
+   else                { sign=0; }
+   if(longsmp>ULAW_MUCLIP)  longsmp=ULAW_MUCLIP;
+   sample=longsmp+ULAW_BIAS;
+   exponent=exp_lut[(sample>>8)&0x7F];
+   mantissa=(sample>>(exponent+3))&0x0F;
+   ulawbyte=~(sign|(exponent<<4)|mantissa);
+   if(ulawbyte==0) { ulawbyte=ULAW_MUZERO;  }  // optional CCITT trap
+   *up=ulawbyte;
+   sp+=sinc;
+   up+=uinc;
+   }
+  }
+ else
+  {
+  for(i=0;i<len;++i)
+   {
+   linear=(*sptr)>>3;
+   if(linear>=0)  {   mask=0xd5;   }
+   else           {   mask=0x55;   linear=-linear-1;   }
+   for(seg=0;seg<ALAW_NSEGS&&linear>seg_aend[seg];seg++);
+   if(seg>=ALAW_NSEGS)   aval=(B)(0x7F^mask);
+   else
+    {
+    aval=(B)seg<<ALAW_SEG_SHIFT;
+    if(seg<2) { aval|=(linear>>1)&ALAW_QUANT_MASK;   }
+    else      { aval|=(linear>>seg)&ALAW_QUANT_MASK; }
+    aval=(aval^mask);
+    }
+   *uptr=aval;
+   uptr+=uinc;
+   sptr+=sinc;
+   }
+  }
+ return RET_YES;
+ }
+
+
+
+ B aaLawDecode                         (B isulaw,BP uptr,IP sptr,Z uinc,Z sinc,H len)
+ {
+ REG Z n,u;
+ REG IP sp;
+ REG BP up;
+ B alaw;
+ H i;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(isulaw)
+  {
+  n=len;
+  up=uptr+n*(N)uinc;
+  sp=sptr+n*(N)sinc;
+  while(n--)
+   {
+   up-=uinc;
+   sp-=sinc;
+   u=*up;
+   if(u==ULAW_MUZERO) { u=0; }    // optional CCITT trap
+   *sp=ulaw_decode[u];
+   }
+  }
+ else
+  {
+  for(i=0;i<len;++i)
+   {
+   alaw=*uptr;
+   *sptr=alaw_decode[alaw];
+   uptr+=uinc;
+   sptr+=sinc;
+   }
   }
  return RET_YES;
  }
@@ -84601,6 +84901,7 @@ typedef struct _FILE_STANDARD_INFO {
  textreader->magic=(H)(PP)aaTextReaderNew;
  textreader->is_initialized=YES;
  if((ret=aaMemoryUnitAllocate(&textreader->mun,bytes))!=YES) { oops; }
+ //aaLog(-555,"textreadernew mun alloc %i",bytes);
  aaMemoryCopy(textreader->mun.mem,bytes,mem);
  if((ret=aaStringLineCountGetToMemory(textreader->mun.mem,(H)textreader->mun.bytes,&textreader->line_count,F32,(VP)&textreader->line_offset,(VP)&textreader->line_chars))!=YES) { oops; return ret; }
  return RET_YES;
@@ -84737,7 +85038,7 @@ typedef struct _FILE_STANDARD_INFO {
  if(textreader->magic!=(H)(PP)aaTextReaderNew) { return RET_NOTINITIALIZED; }
  if(textreader->is_initialized!=YES) {  return RET_NOTINITIALIZED; }
  if(line) { *line=F32; }
- if(aft) { aaStringNull(aft); }
+ if(aft)  { aaStringNull(aft); }
  if(from>=textreader->line_count) { return RET_BOUNDS; }
  //if(line) { *line=
  lc=textreader->line_count;
@@ -84763,6 +85064,33 @@ typedef struct _FILE_STANDARD_INFO {
  return RET_NOTFOUND;
  }
 
+
+
+
+
+ B aaTextReaderDump                    (_textreader*textreader,B(*proc)(_textreader*,H,H,VP))
+ {
+ B ret;
+ H li,chars;
+ B txt[_256K];
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(textreader==NULL) { return RET_BADPARM; }
+ if(textreader->magic!=(H)(PP)aaTextReaderNew) { return RET_NOTINITIALIZED; }
+ if(textreader->is_initialized!=YES) {  return RET_NOTINITIALIZED; }
+ for(li=0;li<textreader->line_count;li++)
+  {
+  if((ret=aaTextReaderLineGet(textreader,li,&chars,txt))!=YES) { oops; break; }
+  if((ret=proc(textreader,li,chars,txt))!=YES)
+   {
+   if(ret!=YES&&ret!=NO) {  oops; }
+   break;
+   }
+  }
+ return RET_YES;
+ }
 
 /*-----------------------------------------------------------------------*/
 
@@ -88471,6 +88799,31 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
+ B aaJsonAppend                        (H handle,VP str)
+ {
+ B ret;
+ _aa_jsonobject*jsonp;
+ H sl;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if((ret=aa_ObjectCheck(aa.json_system.object_id,handle,(VP)&jsonp,NULL))!=RET_YES) { return ret; }
+ if(jsonp->status.is_encode==YES) { return RET_FORBIDDEN; }
+ aaStringLen(str,&sl);
+ if(sl==0) { return RET_YES; }
+ if((sl+_1K)>=jsonp->bytes_left) { if(aa_JsonSystemExtendMemory((VP)&jsonp,sl+_4K)!=YES) oof; }
+ aaStringNCopy(&jsonp->status.mem[jsonp->status.mem_bytes],str,sl,YES);
+ jsonp->status.mem_bytes+=sl;
+ jsonp->bytes_left=jsonp->bytes_allocated-jsonp->status.mem_bytes;
+ return RET_YES;
+ }
+
+
+
+
+
+
+
  B aaJsonAppendf                       (H handle,VP fmt,...)
  {
  B ret;
@@ -88592,10 +88945,10 @@ typedef struct _FILE_STANDARD_INFO {
  jsonp->status.is_encode=NO;
  if(jsonp->last_enc_type==JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,":"))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,":"))!=YES) { oops; }
   }
  jsonp->status.is_encode=NO;
- if((ret=aaJsonAppendf(handle,"{"))!=YES) { oops; }
+ if((ret=aaJsonAppend(handle,"{"))!=YES) { oops; }
  jsonp->last_enc_type=JSON_TYPE_OBJOPEN;
  jsonp->status.is_encode=YES;
  jsonp->in_array=NO;
@@ -88615,7 +88968,7 @@ typedef struct _FILE_STANDARD_INFO {
  if((ret=aa_ObjectCheck(aa.json_system.object_id,handle,(VP)&jsonp,NULL))!=RET_YES) { return ret; }
  if(jsonp->status.is_encode==NO) { return RET_FORBIDDEN; }
  jsonp->status.is_encode=NO;
- if((ret=aaJsonAppendf(handle,"}"))!=YES) { oops; }
+ if((ret=aaJsonAppend(handle,"}"))!=YES) { oops; }
  jsonp->last_enc_type=JSON_TYPE_OBJCLOSE;
  jsonp->status.is_encode=YES;
  jsonp->in_array=NO;
@@ -88637,10 +88990,10 @@ typedef struct _FILE_STANDARD_INFO {
  jsonp->status.is_encode=NO;
  if(jsonp->last_enc_type==JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,":"))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,":"))!=YES) { oops; }
   }
  jsonp->status.is_encode=NO;
- if((ret=aaJsonAppendf(handle,"["))!=YES) { oops; }
+ if((ret=aaJsonAppend(handle,"["))!=YES) { oops; }
  jsonp->last_enc_type=JSON_TYPE_ARRAYOPEN;
  jsonp->in_array=YES;
  jsonp->status.is_encode=YES;
@@ -88659,7 +89012,7 @@ typedef struct _FILE_STANDARD_INFO {
  if((ret=aa_ObjectCheck(aa.json_system.object_id,handle,(VP)&jsonp,NULL))!=RET_YES) { return ret; }
  if(jsonp->status.is_encode==NO) { return RET_FORBIDDEN; }
  jsonp->status.is_encode=NO;
- if((ret=aaJsonAppendf(handle,"]"))!=YES) { oops; }
+ if((ret=aaJsonAppend(handle,"]"))!=YES) { oops; }
  jsonp->last_enc_type=JSON_TYPE_ARRAYCLOSE;
  jsonp->status.is_encode=YES;
  return RET_YES;
@@ -88688,7 +89041,7 @@ typedef struct _FILE_STANDARD_INFO {
   {
   if(jsonp->last_enc_type>=JSON_TYPE_STRING||jsonp->last_enc_type==JSON_TYPE_ARRAYCLOSE||jsonp->last_enc_type==JSON_TYPE_OBJCLOSE)
    {
-   if((ret=aaJsonAppendf(handle,","))!=YES) { oops; }
+   if((ret=aaJsonAppend(handle,","))!=YES) { oops; }
    }
   }
  jsonp->status.is_encode=NO;
@@ -88720,12 +89073,12 @@ typedef struct _FILE_STANDARD_INFO {
  jsonp->status.is_encode=NO;
  if(jsonp->last_enc_type==JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,":"))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,":"))!=YES) { oops; }
   }
  else
  if(jsonp->last_enc_type!=JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,","))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,","))!=YES) { oops; }
   }
  jsonp->status.is_encode=NO;
  if((ret=aaJsonAppendf(handle,"\"%s\"",txt))!=YES) { oops; }
@@ -88749,12 +89102,12 @@ typedef struct _FILE_STANDARD_INFO {
  jsonp->status.is_encode=NO;
  if(jsonp->last_enc_type==JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,":"))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,":"))!=YES) { oops; }
   }
  else
  if(jsonp->last_enc_type!=JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,","))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,","))!=YES) { oops; }
   }
  jsonp->status.is_encode=NO;
  if((ret=aaJsonAppendf(handle,",%f",val))!=YES) { oops; }
@@ -88778,12 +89131,12 @@ typedef struct _FILE_STANDARD_INFO {
  jsonp->status.is_encode=NO;
  if(jsonp->last_enc_type==JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,":"))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,":"))!=YES) { oops; }
   }
  else
  if(jsonp->last_enc_type!=JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,","))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,","))!=YES) { oops; }
   }
  jsonp->status.is_encode=NO;
  if((ret=aaJsonAppendf(handle,",%I64d",val))!=YES) { oops; }
@@ -88810,22 +89163,22 @@ typedef struct _FILE_STANDARD_INFO {
  jsonp->status.is_encode=NO;
  if(jsonp->last_enc_type==JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,":"))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,":"))!=YES) { oops; }
   }
  else
  if(jsonp->last_enc_type!=JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,","))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,","))!=YES) { oops; }
   }
  jsonp->status.is_encode=NO;
  if(val==0)
   {
-  if((ret=aaJsonAppendf(handle,",false"))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,",false"))!=YES) { oops; }
   }
  else
  if(val==1)
   {
-  if((ret=aaJsonAppendf(handle,",true"))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,",true"))!=YES) { oops; }
   }
  jsonp->last_enc_type=JSON_TYPE_FALSE+val;
  jsonp->status.is_encode=YES;
@@ -88847,15 +89200,15 @@ typedef struct _FILE_STANDARD_INFO {
  jsonp->status.is_encode=NO;
  if(jsonp->last_enc_type==JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,":"))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,":"))!=YES) { oops; }
   }
  else
  if(jsonp->last_enc_type!=JSON_TYPE_KEY)
   {
-  if((ret=aaJsonAppendf(handle,","))!=YES) { oops; }
+  if((ret=aaJsonAppend(handle,","))!=YES) { oops; }
   }
  jsonp->status.is_encode=NO;
- if((ret=aaJsonAppendf(handle,",null"))!=YES) { oops; }
+ if((ret=aaJsonAppend(handle,",null"))!=YES) { oops; }
  jsonp->last_enc_type=JSON_TYPE_NULL;
  jsonp->status.is_encode=YES;
  return RET_YES;
@@ -88980,10 +89333,7 @@ typedef struct _FILE_STANDARD_INFO {
  if(str&&sl)
   {
   if(maxstrlen>0) {  sl=aaNumRoof(sl,maxstrlen); }
-  if(sl)
-   {
-   aaStringNCopy(str,&jsonp->status.mem[jsonp->status.line[line].off],sl,YES);
-   }
+  if(sl)          {  aaStringNCopy(str,&jsonp->status.mem[jsonp->status.line[line].off],sl,YES);   }
   }
  return RET_YES;
  }
@@ -89124,6 +89474,41 @@ typedef struct _FILE_STANDARD_INFO {
 
 /*-----------------------------------------------------------------------*/
 
+
+
+ B aaJsonToTextReader                  (H bytes,VP data,_textreader*textreader)
+ {
+ B ret;
+ _jcursor edjay_cur;
+ _jsonunit edjsu;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ while(1)
+  {
+  if((ret=aaJsonCreate(&edjsu.handle,NO))!=YES) { oops; break; }
+  if((ret=aaJsonDecoderBegin(edjsu.handle,bytes,data))!=YES) { oops; break; }
+  if((ret=aaJsonDecoderYield(edjsu.handle,YES,&edjsu.status))!=RET_YES) { oops; break; }
+  if(aaJcursorNew(&edjay_cur)!=YES) { oof; }
+  aaJcursorAttach(&edjay_cur,edjsu.handle);
+  if((ret=aaJcursorFlattenBegin(&edjay_cur))!=YES) { oops; break; }
+  if((ret=aaJcursorFlattenYield(&edjay_cur,1234567890))==RET_NOTREADY) { oops; break; }
+  //if(edtrd->magic!=0) {  if((ret=aaTextReaderDelete(edtrd))!=YES) { oops; break; }   }
+  if((ret=aaTextReaderNew(textreader,0,edjay_cur.flat_out))!=YES) { oops; break; }
+  ret=RET_YES;
+  break;
+  }
+ if(edjay_cur.magic!=0)  {  aaJcursorDelete(&edjay_cur);  }
+ if(edjsu.handle!=0)     {  aaJsonDestroy(edjsu.handle);  }
+ return ret;
+ }
+
+
+
+
+/*-----------------------------------------------------------------------*/
+
 // B htmlout[_512K];
 
 
@@ -89215,7 +89600,7 @@ typedef struct _FILE_STANDARD_INFO {
   case 250: row.type=HTML_ROW_TYPE_TEXT;    flag=HTML_ROW_FLAG_TEXT;    break;
   case 300: row.type=HTML_ROW_TYPE_JS;      flag=HTML_ROW_FLAG_JS;      break;
   case 350: row.type=HTML_ROW_TYPE_CSS;     flag=HTML_ROW_FLAG_CSS;     break;
-  default: oof; break;
+  default:  break;
   }
 
  if(row.type==HTML_ROW_TYPE_HTML)
@@ -89934,6 +90319,20 @@ typedef struct _FILE_STANDARD_INFO {
 
 /*-----------------------------------------------------------------------*/
 
+ B flatpartInit                        (_flatpart*flatpart)
+ {
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(flatpart==NULL) { return RET_BADPARM; }
+ aaMemoryFill(flatpart,sizeof(_flatpart),0);
+ return RET_YES;
+ }
+
+
+
+
+
  B flatpartPush                        (_flatpart*flatpart,VP val)
  {
  #ifdef aa_VERSION
@@ -89984,9 +90383,16 @@ typedef struct _FILE_STANDARD_INFO {
  B str[_8K];
  B ch;
 
+ //Q pp[3];
+ //G ms[3];
+
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
+
+ //aaTimerProfilerGet(&pp[0]);
+ //aaTimerProfilerGet(&pp[1]);
+ //aaTimerProfilerGet(&pp[2]);
  txt[0]=NULL_CHAR;
  aaStringNull(txt);
  for(p=0;p<flatpart->count;p++)
@@ -89994,14 +90400,11 @@ typedef struct _FILE_STANDARD_INFO {
   aaStringLen(txt,&sl);
   if(sl==0) { ch=0; }
   else      { ch=txt[sl-1]; }
-  if(ch=='.'&&flatpart->slot[p][0]=='[')
-   {
-   txt[sl-1]=0;
-   txt[sl]=0;
-   }
+  if(ch=='.'&&flatpart->slot[p][0]=='[') { txt[sl-1]=0;  txt[sl]=0;   }
   aaStringAppend(txt,flatpart->slot[p]);
   aaStringAppendChar(txt,'.');
   }
+ //aaTimerProfilerElapsed(pp[0],0,&ms[0],0,0);
  if(key)
   {
   aaStringCopy(str,key);
@@ -90015,14 +90418,14 @@ typedef struct _FILE_STANDARD_INFO {
   aaStringLen(txt,&sl);
   if(sl==0) { ch=0; }
   else      { ch=txt[sl-1]; }
-  if(ch=='.')
-   {
-   txt[sl-1]=':';
-   txt[sl]=0;
-   }
+  if(ch=='.')   {   txt[sl-1]=':';   txt[sl]=0;   }
   aaStringAppend(txt,val);
   }
+ //aaTimerProfilerElapsed(pp[1],0,&ms[1],0,0);
  aaStringAppendf(flatmp,"%s\n",txt);
+ //aa1TimerProfilerElapsed(pp[2],0,&ms[2],0,0);
+
+ //appLog(0,F32,0,"took %.3f  ,  %.3f  ,  %.3f   ,  ",(D)ms[0]/1000.0,(D)ms[1]/1000.0,(D)ms[2]/1000.0);
  return RET_YES;
  }
 
@@ -90036,7 +90439,7 @@ typedef struct _FILE_STANDARD_INFO {
  B txt[_256K];
  B str[_8K];
  B ch;
-
+oof;
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
@@ -90047,16 +90450,9 @@ typedef struct _FILE_STANDARD_INFO {
   aaStringLen(txt,&sl);
   if(sl==0) { ch=0; }
   else      { ch=txt[sl-1]; }
-  //aaStringLastCharGet(txt,0,&ch);
-  if(ch=='.'&&flatpart->slot[p][0]=='[')
-   {
-   txt[sl-1]=0;
-   txt[sl]=0;
-   //aaStringLastCharSet(txt,0,0,1);
-   }
+  if(ch=='.'&&flatpart->slot[p][0]=='[')  {   txt[sl-1]=0;   txt[sl]=0;   }
   aaStringAppend(txt,flatpart->slot[p]);
   aaStringAppendChar(txt,'.');
-  //aaStringAppendf(txt,"%s.",flatpart->slot[p]);
   }
  if(key)
   {
@@ -90065,27 +90461,15 @@ typedef struct _FILE_STANDARD_INFO {
   aaStringAppend(txt,str);
   aaStringAppendChar(txt,':');
   aaStringAppend(txt,str256k.buf);
-  //aaStringAppendf(txt,"%s:%s",str,str256k.buf);
   }
  else
   {
   aaStringLen(txt,&sl);
   if(sl==0) { ch=0; }
   else      { ch=txt[sl-1]; }
-  //aaStringLastCharGet(txt,0,&ch);
-  if(ch=='.')
-   {
-   txt[sl-1]=':';
-   txt[sl]=0;
-//   aaStringLastCharSet(txt,0,0,1);
-   //aaStringAppend(txt,":");
-   }
-  //aaStringAppendf(txt,"%s",str256k.buf);
+  if(ch=='.')   {   txt[sl-1]=':';   txt[sl]=0; }
   aaStringAppend(txt,str256k.buf);
   }
- //aaStringAppendf(app.big[bigidx].tmp,"%s\n",txt);
- //aaStringAppend(flatmp,txt);
- //aaStringAppendChar(flatmp,LF_CHAR);
  aaStringAppendf(flatmp,"%s\n",txt);
  return RET_YES;
  }
@@ -90152,7 +90536,7 @@ typedef struct _FILE_STANDARD_INFO {
  jcursor->cur_ix=0;
  jcursor->max_ix=jcursor->jsu.status.lines;
  jcursor->llsb=-1;
- jcursor->upd_bits=(1+2+4+8);
+ jcursor->upd_bits=8;//(1+2+4+8);
  aaJcursorUpdate(jcursor);
  return RET_YES;
  }
@@ -90184,11 +90568,7 @@ typedef struct _FILE_STANDARD_INFO {
  if(jcursor->ix_remains==0) { return RET_YES; }
  ix=jcursor->cur_ix;
  if((N)ix==jcursor->llsb)   { return RET_YES;  }
-
  if(bits==F32) { return RET_YES;  }
-
- //aaStringNull(jcursor->key);
- //aaStringNull(jcursor->val);
  jcursor->key[0]=NULL_CHAR;
  jcursor->val[0]=NULL_CHAR;
  jcursor->h0=0;
@@ -90205,7 +90585,6 @@ typedef struct _FILE_STANDARD_INFO {
   if(jcursor->val[0]!=NULL_CHAR) { oof; }
   aaJsonTextGet(jcursor->jsu.handle,ix+0,qt,sizeof(jcursor->val)-8,jcursor->val);
   }
-
  if(jcursor->jsline[ix].ty[0]==JSON_TYPE_KEY)
   {
   if(jcursor->jsline[ix].ty[1]==JSON_TYPE_STRING) { qt=1; }
@@ -90218,7 +90597,7 @@ typedef struct _FILE_STANDARD_INFO {
  // make sure {} and [] hashes are correct
  if(jcursor->jsline[ix+0].code==JSON_CODE_KEY_ARRAY_EMPTY) {   aaStringCopy(jcursor->val,"[]");  }
  else
- if(jcursor->jsline[ix+0].code==JSON_CODE_KEY_OBJ_EMPTY) {   aaStringCopy(jcursor->val,"{}");  }
+ if(jcursor->jsline[ix+0].code==JSON_CODE_KEY_OBJ_EMPTY)   {   aaStringCopy(jcursor->val,"{}");  }
 
 
  jcursor->h0=jcursor->jsline[ix+0].hash;
@@ -90235,17 +90614,8 @@ typedef struct _FILE_STANDARD_INFO {
   else       {  aaStringCopy(jcursor->short_val,"\"...\"");  }
   }
 
-
- //aaStringNull(jcursor->pre);
- //aaStringNull(jcursor->mid);
- ///aaStringNull(jcursor->short_val);
- //aaStringNull(jcursor->short_all);
- //aaStringNull(jcursor->all);
- //aaStringNull(jcursor->spc);
-
  jcursor->pre[0]=NULL_CHAR;
  jcursor->mid[0]=NULL_CHAR;
- //aaStringNull(jcursor->short_val);
  jcursor->short_all[0]=NULL_CHAR;
  jcursor->all[0]=NULL_CHAR;
  jcursor->spc[0]=NULL_CHAR;
@@ -90254,23 +90624,18 @@ typedef struct _FILE_STANDARD_INFO {
  if(aaBitGet(bits,0)) // 1
   {
   aaStringCopyf(jcursor->pre,"%-5i cd=%-2i in=%-1i dp=%-3i ",ix,jcursor->jsline[ix+0].code,jcursor->jsline[ix+0].inc,jcursor->jsline[ix+0].depth);
-  //aaStringNull(tok);
   tok[0]=NULL_CHAR;
   if(jcursor->jsline[ix+0].hash!=0)  { aaStringCopyf(tok,"h0=0x%08x",jcursor->jsline[ix+0].hash); }
   aaStringAppendf(jcursor->pre,"%-15s",tok);
-  //aaStringNull(tok);
   tok[0]=NULL_CHAR;
   if(jcursor->jsline[ix+0].inc>1)
    {
    if(jcursor->jsline[ix+1].hash!=0)  { aaStringCopyf(tok,"h1=0x%08x",jcursor->jsline[ix+1].hash); }
    }
   aaStringAppendf(jcursor->pre,"%-15s",tok);
-
-  //aaStringNull(tok);
   tok[0]=NULL_CHAR;
   aaStringCopyf(tok,"kl=%i",jcursor->jsline[ix+0].len);
   aaStringAppendf(jcursor->pre,"%-8s",tok);
-  //aaStringNull(tok);
   tok[0]=NULL_CHAR;
   if(jcursor->jsline[ix+0].inc>1)
    {
@@ -90367,6 +90732,8 @@ typedef struct _FILE_STANDARD_INFO {
    aaStringFill(jcursor->spc,((jcursor->jsline[ix].depth-jcursor->depth_bias)-1)*2,32,YES);
    }
   }
+
+
  jcursor->llsb=(N)ix;
  return RET_YES;
  }
@@ -90568,7 +90935,7 @@ typedef struct _FILE_STANDARD_INFO {
  if(jcursor->magic!=aaHPP(aaJcursorNew)) { return RET_FAILED; }
  ix=jcursor->cur_ix;
  dp=jcursor->jsline[ix].depth;
- show=1;
+ show=0; ////
  if(show) { aaStringCopy(str,jcursor->key); }
  if(show) { aaStringCopy(val,jcursor->short_val); }
  aaJcursorLinePtr(jcursor,&jsonlinea);
@@ -90602,7 +90969,12 @@ typedef struct _FILE_STANDARD_INFO {
  }
 
 
-
+/*
+ 90091                         flatpartPrint    635.54 Hz     0.998 Yz         1688 calls   0.016 %
+ 90073                           flatpartPop    107.30 Hz     0.168 Yz          285 calls   0.003 %
+ 90043                          flatpartPush     74.17 Hz     0.116 Yz          197 calls   0.002 %
+ 90058                         flatpartPushf     32.76 Hz     0.051 Yz           87 calls   0.001 %
+ */
 
  B aaJcursorFlattenBegin               (_jcursor*jcursor)
  {
@@ -90618,8 +90990,8 @@ typedef struct _FILE_STANDARD_INFO {
  B aaJcursorFlattenYield               (_jcursor*jcursor,H ita)
  {
  B ret;
- H go;
- //_flatpart fpa;
+ H go;//,bo;
+
  if(jcursor==NULL) { return RET_MISSINGPARM; }
  if(jcursor->magic!=aaHPP(aaJcursorNew)) { return RET_FAILED; }
  if(ita<1) { ita=1; }
@@ -90627,13 +90999,27 @@ typedef struct _FILE_STANDARD_INFO {
  while(1)
   {
   if(jcursor->flatten_stage==1000) { break; }
-  if((go++)>ita) { break; }
+  if((go++)>ita)                   { break; }
   switch(jcursor->flatten_stage)
    {
    case 10:
    aaMemoryFill(&jcursor->fpa,sizeof(jcursor->fpa),0);
    jcursor->rai=0;
    if(aaJcursorHome(jcursor)!=YES) { oof; }
+
+   /*
+   for(bo=0;bo<46;bo++)
+    {
+    aaJcursorLinePtr(jcursor,&jcursor->jsonlinea);
+    if(jcursor->jsonlinea->code==JSON_CODE_KEY_VALUE)
+     {
+     appLog(0,F32,0,"bo=%i rem=%i code=%i key=%s val=%s",bo,jcursor->ix_remains,jcursor->jsonlinea->code,jcursor->key,jcursor->val);
+     }
+    if((ret=aaJcursorNext(jcursor))!=YES) { oops; break; }
+    }
+   if(aaJcursorHome(jcursor)!=YES) { oof; }
+   */
+
    jcursor->flatten_stage=20;
    break;
 
@@ -90649,8 +91035,7 @@ typedef struct _FILE_STANDARD_INFO {
     if(jcursor->jsonlinea->code==JSON_CODE_ARRAY_CLOSE)    {   flatpartPop(&jcursor->fpa);   break;   }
     if(jcursor->jsonlinea->code==JSON_CODE_OBJ_OPEN)
      {
-     if(0) {  if(jcursor->jsonlinea->elm_index!=-1&&jcursor->fpa.count>0) { flatpartPushf(&jcursor->fpa,"[%i]",jcursor->jsonlinea->elm_index);  } }
-     else  {  if(jcursor->jsonlinea->elm_index!=-1)                       { flatpartPushf(&jcursor->fpa,"[%i]",jcursor->jsonlinea->elm_index);  } }
+     if(jcursor->jsonlinea->elm_index!=-1)  { flatpartPushf(&jcursor->fpa,"[%i]",jcursor->jsonlinea->elm_index);  }
      break;
      }
     if(jcursor->jsonlinea->code==JSON_CODE_ARRAY_OPEN)
@@ -90689,7 +91074,6 @@ typedef struct _FILE_STANDARD_INFO {
 
    case 1000:
    break;
-   //return RET_YES;
    }
   }
  if(jcursor->flatten_stage!=1000) { return RET_NOTREADY; }
@@ -91053,6 +91437,20 @@ typedef struct _FILE_STANDARD_INFO {
 
 /*------------------------------------------------------------------------*/
 
+ structure
+ {
+ H self_handle;
+ H total_bytes;
+ H user_bytes;
+ H lock_deny_count;
+ H num;
+ H ack;
+ Q from_sesh;
+ B rsvd[1000];
+ }
+ _ipcramhdr;
+
+
 
 
  B aaIpcCreate                         (HP handle,H bytes,VP name,...)
@@ -91062,24 +91460,18 @@ typedef struct _FILE_STANDARD_INFO {
  B xname[_1K];
  _ipcramhdr ramhdr;
  _ipcramhdr*ramhdrptr;
- //H bytes;
  DWORD e;
  BP bp;
- _aa_objectinstanceheader*oih;
  Q v;
- B isroot;
+ H byts,si,totb;
 
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
  aaVargsf4K(name);
  if(aaStringIsNull(str4k.buf)!=NO) { return RET_BADPARM; }
- if(bytes==0) { isroot=0; }
- else         { isroot=1; }
- if(isroot)
-  {
-  if(bytes<4||bytes>_16MEG) { return RET_BOUNDS; }
-  }
+ if(bytes!=0&&(bytes<4||bytes>_16MEG)) { return RET_BOUNDS; }
+
  if((ret=aa_ObjectCreate(aa.ipc_system.object_id,handle,(VP)&ipcp))!=RET_YES) { oops; return ret; }
  ipcp->self_handle=*handle;
  ipcp->object_handle=NULL;
@@ -91088,80 +91480,84 @@ typedef struct _FILE_STANDARD_INFO {
  ipcp->status.is_exited=NO;
  aaStringCopy(xname,str4k.buf);
  aaStringCopyf(ipcp->status.name,"%s",str4k.buf);
-
- if(isroot)//||incoming==EITHER)
+ if(bytes>0)
   {
   while(1)
    {
-   //bytes=aa_IPCUSER_BYTES+sizeof(_ipcramhdr);
-   if((ipcp->object_handle=CreateFileMapping((HANDLE)F32,NULL,PAGE_EXECUTE_READWRITE,0,bytes+sizeof(_ipcramhdr),(LPCTSTR)xname))==NULL) { ret=RET_FAILED; break; }
+   totb=bytes+sizeof(_ipcramhdr);
+   if((ipcp->object_handle=CreateFileMapping((HANDLE)F32,NULL,PAGE_EXECUTE_READWRITE,0,totb,(LPCTSTR)xname))==NULL) { oow; ret=RET_FAILED; break; }
    e=GetLastError();
-   if(e==ERROR_ALREADY_EXISTS) { ret=RET_EXISTS; break; }
-   if(e!=0) { ret=RET_FAILED; break; }
-   if((ipcp->page_memory=MapViewOfFile(ipcp->object_handle,FILE_MAP_ALL_ACCESS,0,0,bytes+sizeof(_ipcramhdr)))==NULL) { ret=RET_FAILED; break; }
-   xname[0]+=(B)1; ipcp->mutex_handle=CreateMutex(NULL,TRUE,(LPCTSTR)xname);  xname[0]-=(B)1;
+   if(e==ERROR_ALREADY_EXISTS) { ret=RET_EXISTS;      break; }
+   if(e!=0)                    { ret=RET_FAILED; oof; break; }
+
+   if((ipcp->page_memory=MapViewOfFile(ipcp->object_handle,FILE_MAP_ALL_ACCESS,0,0,totb))==NULL) { oof; ret=RET_FAILED; break; }
+   xname[0]+=(B)1;
+   ipcp->mutex_handle=CreateMutex(NULL,TRUE,(LPCTSTR)xname);
+   xname[0]-=(B)1;
    e=GetLastError();
-   if(ipcp->mutex_handle==NULL)  {   if(e==ERROR_ALREADY_EXISTS||e==ERROR_INVALID_HANDLE)  {oof; }    ret=RET_FAILED;    break;    }
+   if(ipcp->mutex_handle==NULL)  {   if(e==ERROR_ALREADY_EXISTS||e==ERROR_INVALID_HANDLE)  {oof; }  oof;  ret=RET_FAILED;    break;    }
    if(e!=0) {  ret=RET_FAILED; break; }
    aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
    ramhdrptr->total_bytes=bytes+sizeof(_ipcramhdr);
-   ramhdrptr->user_bytes=bytes;//ramhdrptr->total_bytes-sizeof(_ipcramhdr);
-   ipcp->status.is_root=YES;
+   ramhdrptr->user_bytes=bytes;
+   ipcp->status.is_host=YES;
    ipcp->status.is_locked=YES;
    ret=RET_YES;
    break;
    }
+  if(ret!=RET_YES) { aaIpcDestroy(*handle); *handle=0; return ret; }
   }
- //else
- if(isroot==NO)//||incoming==EITHER)
+ else
   {
   while(1)
    {
-   //if(incoming==EITHER&&ipcp->status.is_locked==YES&&ret==RET_YES) { oof; break; }  // either mode worked, so skip
    ipcp->object_handle=OpenFileMapping(FILE_MAP_ALL_ACCESS,FALSE,(LPCTSTR)xname);
    e=GetLastError();
-
    if(ipcp->object_handle==NULL&&e==ERROR_FILE_NOT_FOUND) {  ret=RET_NOTFOUND; break; }
-   if(ipcp->object_handle==NULL&&e!=ERROR_FILE_NOT_FOUND) {  ret=RET_FAILED; break; }
-   //bytes=sizeof(_ipcramhdr);
+   if(ipcp->object_handle==NULL&&e!=ERROR_FILE_NOT_FOUND) {  oof; ret=RET_FAILED; break; }
+
    if((ipcp->page_memory=MapViewOfFile(ipcp->object_handle,FILE_MAP_ALL_ACCESS,0,0,sizeof(_ipcramhdr)))==NULL) { oof; ret=RET_FAILED;  break; }
    aaMemoryCopy(&ramhdr,sizeof(_ipcramhdr),ipcp->page_memory);
-   bytes=ramhdr.user_bytes;
+   byts=ramhdr.user_bytes;
    if(UnmapViewOfFile(ipcp->page_memory)!=TRUE) { oof; }
-   if(bytes<4||bytes>_16MEG) { oof; return RET_BOUNDS; }
+   if(byts<4||byts>_16MEG) { oof; return RET_BOUNDS; }
    ipcp->page_memory=NULL;
-   if((ipcp->page_memory=MapViewOfFile(ipcp->object_handle,FILE_MAP_ALL_ACCESS,0,0,bytes+sizeof(_ipcramhdr)))==NULL) { ret=RET_FAILED;  break; }
-   xname[0]+=(B)1; ipcp->mutex_handle=OpenMutex(MUTEX_ALL_ACCESS,FALSE,(LPCTSTR)xname); xname[0]-=(B)1;
+   totb=byts+sizeof(_ipcramhdr);
+
+   if((ipcp->page_memory=MapViewOfFile(ipcp->object_handle,FILE_MAP_ALL_ACCESS,0,0,totb))==NULL) { oow; ret=RET_FAILED;  break; }
+   xname[0]+=(B)1;
+   ipcp->mutex_handle=OpenMutex(MUTEX_ALL_ACCESS,FALSE,(LPCTSTR)xname);
+   xname[0]-=(B)1;
    e=GetLastError();
    if(ipcp->mutex_handle==NULL) { aaNote(0,"e=%i",e); ret=RET_FAILED; break; }
-   ipcp->status.is_root=NO;
+   aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
+   ramhdrptr->total_bytes=byts+sizeof(_ipcramhdr);
+   ramhdrptr->user_bytes=byts;
+   ipcp->status.is_host=NO;
    ipcp->status.is_locked=NO;
    ret=RET_YES;
    break;
    }
+  if(ret!=RET_YES) { aaIpcDestroy(*handle); *handle=0; return ret; }
   }
- if(ret!=YES)
-  {
-  if(ipcp->mutex_handle!=NULL)  { CloseHandle(ipcp->mutex_handle); ipcp->mutex_handle=NULL; }
-  if(ipcp->page_memory!=NULL)   { if(UnmapViewOfFile(ipcp->page_memory)!=TRUE) { oof; } ipcp->page_memory=NULL; }
-  if(ipcp->object_handle!=NULL) { CloseHandle(ipcp->object_handle); ipcp->object_handle=NULL; }
-  aa_ObjectDestroy(aa.ipc_system.object_id,*handle);
-  *handle=0;
-  return ret;
-  }
+
+ si=((*handle-aa_OBJ_BASE_HANDLE)%aa_OBJ_MAX_PER_ID);
  aaCast(bp,BP,ipcp);
  bp-=sizeof(_aa_objectinstanceheader);
- aaCast(oih,_aa_objectinstanceheader*,bp);
+ //aaCast(oih,_aa_objectinstanceheader*,bp);
  aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
-// aaQuadSet(&ipcp->status.session,oih->sesh.lo,aa.core_system.process_id);
- //v=((Q)aa.core_system.process_id<<32);
- v=(Q)aa.core_system.process_id<<32;//*42949672946;
- v=(v+(oih->sesh>>32));
- ipcp->status.session=v;//(aa.core_system.process_id<<32)+(H)(oih->sesh>>32);//session,oih->sesh; //ashot
+ v=(Q)aa.core_system.process_id<<32;
+ //v=(v+(oih->sesh>>32));
+ v=(v+((Q)si));
+ ipcp->status.fmo=(H)ipcp->object_handle;
+ ipcp->status.session=v;
  ipcp->status.bytes=ramhdrptr->user_bytes;
- //aa_ObjectHandleToIndex(aa.ipc_system.object_id,*handle,&ipcp->status.index);
  return RET_YES;
  }
+
+
+
+
 
 
 
@@ -91176,8 +91572,9 @@ typedef struct _FILE_STANDARD_INFO {
  #endif
  if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,&isprot))!=RET_YES) { return ret; }
  if(isprot) { return RET_FORBIDDEN; }
- if(UnmapViewOfFile(ipcp->page_memory)!=TRUE) { oof; }
- CloseHandle(ipcp->object_handle);
+ if(ipcp->mutex_handle!=NULL)  { CloseHandle(ipcp->mutex_handle); ipcp->mutex_handle=NULL; }
+ if(ipcp->page_memory!=NULL)   { if(UnmapViewOfFile(ipcp->page_memory)!=TRUE) { oof; } ipcp->page_memory=NULL; }
+ if(ipcp->object_handle!=NULL) { CloseHandle(ipcp->object_handle); ipcp->object_handle=NULL; }
  aa_ObjectDestroy(aa.ipc_system.object_id,handle);
  return RET_YES;
  }
@@ -91185,18 +91582,83 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
-
- B aaIpcStatus                         (H handle,_ipcstatus*ipcstatus,B state)
+ B aaIpcLock                           (H handle)
  {
  B ret;
  _aa_ipcobject*ipcp;
+ _ipcstatus is;
+ B was_locked;
+ _ipcramhdr*ramhdrptr;
  DWORD res;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
+ aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
+ ipcp->status.hog_level=ramhdrptr->lock_deny_count;
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES) { oops;  return ret;  }
+ was_locked=ipcp->status.is_locked;
+ aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
+ while(1)
+  {
+  if(was_locked==YES) { break; }
+  if((res=WaitForSingleObject(ipcp->mutex_handle,0))==WAIT_FAILED) { oof; oow; oof; return RET_FAILED; }
+  if(res==WAIT_TIMEOUT)   { oof; ramhdrptr->lock_deny_count++; ipcp->status.hog_level=ramhdrptr->lock_deny_count;  break; }
+  if(res==WAIT_ABANDONED) { oof; ipcp->status.is_locked=NO; ipcp->status.is_exited=YES;  break;   }
+  if(res!=WAIT_OBJECT_0)  { oof; oow; oof; }
+  ipcp->status.is_locked=YES;
+  ipcp->status.hog_level=ramhdrptr->lock_deny_count;
+  break;
+  }
+ if(ipcp->status.is_locked==NO) { oof; return RET_FAILED; }
+ return RET_YES;
+ }
+
+
+
+
+
+ B aaIpcRelease                        (H handle)
+ {
+ B ret;
+ _aa_ipcobject*ipcp;
+ _ipcstatus is;
+ B was_locked;
  _ipcramhdr*ramhdrptr;
 
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
+ if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES) { oops;  return ret;  }
+ aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
+ was_locked=ipcp->status.is_locked;
+ while(1)
+  {
+  if(was_locked==NO) { break; }
+  ramhdrptr->lock_deny_count=0;
+  if(ReleaseMutex(ipcp->mutex_handle)==0) { oof; oow; oof; return RET_FAILED; }
+  ipcp->status.is_locked=NO;
+  ipcp->status.hog_level=ramhdrptr->lock_deny_count;
+  break;
+  }
+ if(ipcp->status.is_locked==YES) { oof; return RET_FAILED; }
+ return RET_YES;
+ }
 
+
+
+
+ B aaIpcStatus                         (H handle,_ipcstatus*ipcstatus)
+ {
+ B ret;
+ _aa_ipcobject*ipcp;
+ _ipcramhdr*ramhdrptr;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
  if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
  aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
  ipcp->status.hog_level=ramhdrptr->lock_deny_count;
@@ -91205,79 +91667,54 @@ typedef struct _FILE_STANDARD_INFO {
   aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&ipcp->status);
   ipcstatus->ram=&ipcp->page_memory[sizeof(_ipcramhdr)];
   }
-
- if(state>aa_IPCSTATE_Both)   { return RET_BADPARM; }
- if(state==aa_IPCSTATE_None)  { return RET_YES;  }
- aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
-
-
- // why would i do a lock + release at the same time ??  - im sure there was a reason
- if(aaBitGet(state,0)) // lock
-  {
-  if(ipcp->status.is_locked==YES) { return RET_YES; }
-  if((res=WaitForSingleObject(ipcp->mutex_handle,0))==WAIT_FAILED) { oof; oow; oof; return RET_FAILED; }
-  if(res==WAIT_TIMEOUT)
-   {
-   ramhdrptr->lock_deny_count++;
-   ipcp->status.hog_level=ramhdrptr->lock_deny_count;
-   if(ipcstatus)  { ipcstatus->hog_level=ipcp->status.hog_level; }
-   return RET_DENIED;
-   }
-  if(res==WAIT_ABANDONED)
-   {
-   ipcp->status.is_locked=NO;
-   ipcp->status.is_exited=YES;
-   if(ipcstatus)  { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&ipcp->status); }
-   if(ipcstatus)  { ipcstatus->ram=&ipcp->page_memory[sizeof(_ipcramhdr)]; }
-   }
-  else
-   {
-   if(res!=WAIT_OBJECT_0)  { oof; oow; oof; }
-   ipcp->status.is_locked=YES;
-   ipcp->status.hog_level=ramhdrptr->lock_deny_count;
-   if(ipcstatus)  { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&ipcp->status); }
-   if(ipcstatus)  { ipcstatus->ram=&ipcp->page_memory[sizeof(_ipcramhdr)]; }
-   }
-  }
-
- if(aaBitGet(state,1)) // release
-  {
-  if(ipcp->status.is_locked==NO)   {   return RET_YES;   }
-  ramhdrptr->lock_deny_count=0;
-  if(ReleaseMutex(ipcp->mutex_handle)==0) { oof; oow; oof; return RET_FAILED; }
-  ipcp->status.is_locked=NO;
-  ipcp->status.hog_level=ramhdrptr->lock_deny_count;
-  if(ipcstatus)  { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&ipcp->status); }
-  if(ipcstatus)  { ipcstatus->ram=&ipcp->page_memory[sizeof(_ipcramhdr)]; }
-  }
+ #if 0
+ rrr=aa.core_system.ntQueryObject((HANDLE)ipcp->status.fmo,0,(PVOID)&pobi,(ULONG)sizeof(pobi),&rlen);
+ if(rrr!=0) { aaNote(0,"rrrr=%i",rrr); }
+ ipcp->status.han_cnt=pobi.HandleCount;
+ #endif
  return RET_YES;
  }
 
 
 
 
- B aaIpcWrite                          (H handle,_ipcstatus*ipcstatus,H offset,H bytes,VP data)
+
+
+
+ B aaIpcWrite                          (H handle,H bytes,VP data)
  {
  B ret;
  _aa_ipcobject*ipcp;
  _ipcstatus is;
-// B was_locked;
+ B was_locked;
+ H offset;
+ _ipcramhdr*ramhdrptr;
 
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
- if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Lock))!=RET_YES)
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
+ aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
+ if(ramhdrptr->num>ramhdrptr->ack)
   {
-  if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
-  return ret;
+  return RET_NOTREADY;
   }
- if(is.is_locked!=YES) { oof; }
+ was_locked=ipcp->status.is_locked;
+ if(was_locked==NO)
+  {
+  if((ret=aaIpcLock(handle))!=YES) { oops; }
+  }
+ ramhdrptr->num++;
+ ramhdrptr->from_sesh=ipcp->status.session;
+ offset=0;
  if(data==NULL) { aaMemoryFill(&is.ram[offset],bytes,0); }
  else           { aaMemoryCopy(&is.ram[offset],bytes,data); }
- if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Release))!=RET_YES) { oops; }
- if(is.is_locked!=NO)  { oof; }
- if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
+ if(was_locked==NO)
+  {
+  if((ret=aaIpcRelease(handle))!=YES) { oops; }
+  }
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
  return RET_YES;
  }
 
@@ -91285,44 +91722,193 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
- B aaIpcWritef                         (H handle,_ipcstatus*ipcstatus,H offset,VP fmt,...)
- {
- B ret;
- _aa_ipcobject*ipcp;
-
- #ifdef aa_VERSION
- aa_ZIAG(__FUNCTION__);
- #endif
- if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
- aaVargsf4K(fmt);
- return(aaIpcWrite(handle,ipcstatus,offset,str4k.len+1,str4k.buf));
- }
-
-
-
- B aaIpcRead                           (H handle,_ipcstatus*ipcstatus,H offset,H bytes,VP data)
+ B aaIpcRead                           (H handle,QP from,H bytes,VP data)
  {
  B ret;
  _aa_ipcobject*ipcp;
  _ipcstatus is;
-// B was_locked;
+ B was_locked;
+ H offset;
+ _ipcramhdr*ramhdrptr;
 
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
  if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
- if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Lock))!=RET_YES)
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
+ aaCast(ramhdrptr,_ipcramhdr*,&ipcp->page_memory[0]);
+ if(ramhdrptr->ack==ramhdrptr->num) { return RET_NOTREADY; }
+ was_locked=ipcp->status.is_locked;
+ if(was_locked==NO)
   {
-  if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
-  return ret;
+  if((ret=aaIpcLock(handle))!=YES) { oops; }
   }
- if(is.is_locked!=YES) { oof; }
+ *from=ramhdrptr->from_sesh;
+ offset=0;
  aaMemoryCopy(data,bytes,&is.ram[offset]);
-  if((ret=aaIpcStatus(handle,&is,aa_IPCSTATE_Release))!=RET_YES) { oops; }
-  if(is.is_locked!=NO)  { oof; }
- if(ipcstatus) { aaMemoryCopy(ipcstatus,sizeof(_ipcstatus),&is); }
+ ramhdrptr->ack++;
+ if(was_locked==NO)
+  {
+  if((ret=aaIpcRelease(handle))!=YES) { oops; }
+  }
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
  return RET_YES;
  }
+
+
+
+
+
+
+
+
+#if 0
+
+ B aaIpcYield                          (H handle)
+ {
+ B ret;
+ _aa_ipcobject*ipcp;
+ B was_locked;
+ H by;
+ B data[_32K];
+ B old_data[_32K];
+ _ipcstatus is;
+ H offset;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
+ was_locked=ipcp->status.is_locked;
+ if(was_locked==NO)
+  {
+  if((ret=aaIpcLock(handle))!=YES) { oops; }
+  }
+
+ if(aaQuePeekDword(ipcp->status.oo_que.handle,0,&by)==YES)
+  {
+  if(ipcp->status.oo_que.status.bytes<(4+by))
+   {
+   if(was_locked==NO)
+    {
+    if((ret=aaIpcRelease(handle))!=YES) { oops; }
+    }
+   if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
+   return RET_NOTREADY;
+   }
+
+
+  offset=0;
+  aaMemoryCopy(old_data,by,&is.ram[offset]);
+  if(aaQuePeek(ipcp->status.oo_que.handle,4,by,data)==YES)
+   {
+   aaQueDiscard(ipcp->status.oo_que.handle,4+by);
+   aaQueStatus(ipcp->status.oo_que.handle,&ipcp->status.oo_que.status);
+   }
+  }
+
+ if(was_locked==NO)
+  {
+  if((ret=aaIpcRelease(handle))!=YES) { oops; }
+  }
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
+ return RET_YES;
+ }
+
+
+
+
+ B aaIpcQueueWrite                     (H handle,H bytes,VP data)
+ {
+ B ret;
+ _aa_ipcobject*ipcp;
+ _ipcstatus is;
+ B was_locked;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
+ was_locked=ipcp->status.is_locked;
+ if(was_locked==NO)
+  {
+  if((ret=aaIpcLock(handle))!=YES) { oops; }
+  }
+ if((ret=aaQueWriteDword(ipcp->status.oo_que.handle,bytes))!=YES) { oops; }
+ if((ret=aaQueWrite(ipcp->status.oo_que.handle,bytes,data))!=YES) { oops; }
+ aaQueStatus(ipcp->status.oo_que.handle,&ipcp->status.oo_que.status);
+ if(was_locked==NO)
+  {
+  if((ret=aaIpcRelease(handle))!=YES) { oops; }
+  }
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
+ return RET_YES;
+ }
+
+
+
+
+ B aaIpcQueueRead                      (H handle,HP bytes,VP data)
+ {
+ B ret;
+ _aa_ipcobject*ipcp;
+ _ipcstatus is;
+ B was_locked;
+ H by;
+
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if((ret=aa_ObjectCheck(aa.ipc_system.object_id,handle,(VP)&ipcp,NULL))!=RET_YES) { return ret; }
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
+ if(bytes) { *bytes=0; }
+ //if(is.ii_que.status.bytes<bytes)  {  return RET_NOTREADY;  }
+ //appLog(0,F32,"wl=%i",is.ii_que.status.bytes);
+
+ if(is.ii_que.status.bytes<4)      {  return RET_NOTREADY;  }
+ was_locked=ipcp->status.is_locked;
+ if(was_locked==NO)
+  {
+  if((ret=aaIpcLock(handle))!=YES) { oops; }
+  }
+ if(aaQuePeekDword(ipcp->status.ii_que.handle,0,&by)==YES)
+  {
+  //appLog(0,F32,"peek =%i",by);
+  if(ipcp->status.ii_que.status.bytes<(4+by))
+   {
+   if(was_locked==NO)
+    {
+    if((ret=aaIpcRelease(handle))!=YES) { oops; }
+    }
+   if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
+   oof;
+   return RET_NOTREADY;
+   }
+  //appLog(0,F32,"by=%i qu=%i",by,ipcp->status.ii_que.status.bytes);
+  if(aaQuePeek(ipcp->status.ii_que.handle,4,by,data)==YES)
+   {
+   //if(by!=bytes) { aaNote(0,"zbu=%i =%i",by,bytes); }
+   aaQueDiscard(ipcp->status.ii_que.handle,4+by);
+   aaQueStatus(ipcp->status.ii_que.handle,&ipcp->status.ii_que.status);
+   if(bytes) { *bytes=by; }
+   }
+  }
+
+ if(was_locked==NO)
+  {
+  if((ret=aaIpcRelease(handle))!=YES) { oops; }
+  }
+ if((ret=aaIpcStatus(handle,&is))!=RET_YES)  { oops; return ret;  }
+ return RET_YES;
+ }
+
+#endif
+
+
+
+
+
 
 /*------------------------------------------------------------------------*/
 
@@ -91540,6 +92126,9 @@ typedef struct _FILE_STANDARD_INFO {
  B aaNetWebsocketServerNew             (_websocketserver*websocketserver,H ip,W port,H maxcalls)
  {
  B ret;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
  if(websocketserver==NULL)                  { return RET_MISSINGPARM; }
  aaMemoryFill(websocketserver,sizeof(_websocketserver),0);
  websocketserver->magic=aaHPP(aaNetWebsocketServerNew);
@@ -91563,6 +92152,10 @@ typedef struct _FILE_STANDARD_INFO {
  {
  B ret;
  _websocketservercalldata*scd;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
  if(websocketserver==NULL)                    { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
  if(websocketserver->port.handle!=0)
@@ -91570,7 +92163,8 @@ typedef struct _FILE_STANDARD_INFO {
   while(1)
    {
    aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
-   if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,&websocketserver->port_iter0))!=YES) { break; }
+   //if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,&websocketserver->port_iter0))!=YES) { break; }
+   if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0))!=YES) { break; }
    if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata))
     {
     aaNote(0,"z aanetwebsocketserverdelete eb=%i so=%i",websocketserver->call.status.extra_bytes,sizeof(_websocketservercalldata));
@@ -91586,6 +92180,7 @@ typedef struct _FILE_STANDARD_INFO {
   aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
   aaNetTcpPortDestroy(websocketserver->port.handle);
   websocketserver->port.handle=0;
+  if(websocketserver->cur_calls!=0) aaNote(0,"curc=%i",websocketserver->cur_calls);
   }
  //aaDebugf("websocketserver destroyed");
  aaMemoryFill(websocketserver,sizeof(_websocketserver),0);
@@ -91596,9 +92191,7 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
-
-
- B aaNetWebsocketServerYield           (_websocketserver*websocketserver)
+ B aaNetWebsocketServerYield           (_websocketserver*websocketserver,H callhandle)
  {
  B ret;
  H ita;
@@ -91612,6 +92205,9 @@ typedef struct _FILE_STANDARD_INFO {
  _websockethdr wockpkt;
  Q ms;
 
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
  if(websocketserver==NULL)                                  { return RET_MISSINGPARM;    }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
 
@@ -91622,7 +92218,23 @@ typedef struct _FILE_STANDARD_INFO {
   {
   scd=NULL;
   aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
-  if(aaNetTcpPortCallNext(websocketserver->port.handle,&cu.handle,&cu.status,&websocketserver->port_iter0)!=YES) { continue; }
+  //if(aaNetTcpPortCallNext(websocketserver->port.handle,&cu.handle,&cu.status,&websocketserver->port_iter0)!=YES) { continue; }
+
+  if(callhandle==0)
+   {
+   if(aaNetTcpPortCallNext(websocketserver->port.handle,&cu.handle,&cu.status,0)!=YES) { continue; }
+   }
+  else
+   {
+   cu.handle=callhandle;
+   if((ret=aaNetTcpCallStatus(cu.handle,&cu.status))!=YES) { oops; }
+   if(cu.status.is_connected!=YES) { oof;  }
+   if(cu.status.is_incoming!=YES) { oof; }
+   if(cu.status.extra_bytes!=sizeof(_websocketservercalldata)) { oof; }
+   }
+
+
+
   if(cu.status.is_connected!=YES)
    {
    if(websocketserver->max_calls>0&&websocketserver->port.status.calls_inuse>=websocketserver->max_calls)
@@ -91678,7 +92290,7 @@ typedef struct _FILE_STANDARD_INFO {
   if(scd==NULL)   {   break;   }
   if(cu.status.is_closed)
    {
-   if(scd->is_close==0&&scd->is_ready!=YES) { scd->is_close=1;   continue;    }
+   if(scd->is_close==0&&scd->is_ready!=YES) {  scd->is_close=1;   continue;    }
    }
 
 
@@ -91691,7 +92303,7 @@ typedef struct _FILE_STANDARD_INFO {
    switch(scd->stage)
     {
     case 0:
-    if((ret=aaNetWebsocketInit(&scd->wock,cu.handle,0))!=YES) { oops; }
+    if((ret=aaNetWebsocketInit(&scd->wock,cu.handle,NULL,0))!=YES) { oops; }
     scd->wock.ping_xmit_last_ms=0;
     scd->wock.pong_xmit_last_ms=0;
     scd->wock.ping_rcve_last_ms=0;
@@ -91767,7 +92379,7 @@ typedef struct _FILE_STANDARD_INFO {
      if(bytes==2)         { hv=*(WP)&the_data[0];  hv=aaNumSwapWord(hv);    }
      ///aaDebugf("closing line=%i",__LINE__);
      aaNetWebsocketClose(&scd->wock);
-     if(scd->is_close==0)    {      scd->is_close=1;      }
+     if(scd->is_close==0)    {     scd->is_close=1;      }
      break;
      }
 
@@ -91796,7 +92408,7 @@ typedef struct _FILE_STANDARD_INFO {
      }
 
     if(oc==0)     {     break;     }
-    if(scd->is_close==0) { scd->is_close=1;      }
+    if(scd->is_close==0) {   scd->is_close=1;      }
     //user_cntr++;
     ///binerr_user_cntr++;
     aaDebugf("a binary oc=%i ff=%i bytes=%i ",oc,ff,bytes);
@@ -91825,6 +92437,10 @@ typedef struct _FILE_STANDARD_INFO {
  {
  B ret;
  BP bp;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
  if(websocketserver==NULL) { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
  if(websockethdr==NULL) { return RET_MISSINGPARM; }
@@ -91844,6 +92460,10 @@ typedef struct _FILE_STANDARD_INFO {
  {
  B ret;
  BP bp;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
  if(websocketserver==NULL) { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
  if(websockethdr==NULL) { return RET_MISSINGPARM; }
@@ -91864,6 +92484,10 @@ typedef struct _FILE_STANDARD_INFO {
  {
  B ret;
  _websockethdr wockpkt;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
  if(websocketserver==NULL) { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
  if(websocketserver->scd==NULL) { return RET_NOTREADY; }
@@ -91885,6 +92509,10 @@ typedef struct _FILE_STANDARD_INFO {
 
  B aaNetWebsocketServerPktWritef       (_websocketserver*websocketserver,B oc,B ff,VP fmt,...)
  {
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
  aaVargsf512K(fmt);
  if(websocketserver==NULL) { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
@@ -91894,27 +92522,27 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
-
  B aaNetWebsocketServerCallSet         (_websocketserver*websocketserver,H callhandle)
  {
  B ret;
  _tcpcallunit call;
  _websocketservercalldata*scd;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
  if(websocketserver==NULL) { return RET_MISSINGPARM; }
  if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
- //websocketserver->call.handle=0;
- //websocketserver->scd=NULL;
  call.handle=callhandle;
- ret=aaNetTcpCallStatus(call.handle,&call.status);
- if(ret!=RET_YES) { return ret; }
+ if((ret=aaNetTcpCallStatus(call.handle,&call.status))!=RET_YES) { return ret; }
  if(call.status.is_connected!=YES) { return RET_NOTREADY; }
- if(call.status.is_ready!=YES) { return RET_NOTREADY; }
+ if(call.status.is_ready!=YES)     { return RET_NOTREADY; }
  if(call.status.extra_bytes!=sizeof(_websocketservercalldata)) { return RET_NOTREADY; }
- if(call.status.is_incoming!=YES) { return RET_NOTREADY; }
+ if(call.status.is_incoming!=YES)  { return RET_NOTREADY; }
  scd=(_websocketservercalldata*)call.status.extra_data;
- //if(scd->is_ready!=YES) { return RET_NOTREADY; }
+ if(scd->is_ready!=YES)            { return RET_NOTREADY; }
  websocketserver->scd=scd;
- websocketserver->call.handle=call.handle;//scd->wock.tcp_handle;
+ websocketserver->call.handle=call.handle;
  aaNetTcpCallStatus(websocketserver->call.handle,&websocketserver->call.status);
  return RET_YES;
  }
@@ -91927,7 +92555,8 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
- B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver)//,HP callhandle,_tcpcallstatus*callstatus)
+#if 0
+ B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver,HP iter)//,HP callhandle,_tcpcallstatus*callstatus)
  {
  B ret;
  _websocketservercalldata*scd;
@@ -91942,7 +92571,105 @@ typedef struct _FILE_STANDARD_INFO {
   while(1)
    {
    aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
-   if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,&websocketserver->port_iter1       ))!=YES) { break; }
+   if(iter==NULL)
+    {
+    if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,&websocketserver->port_iter1))!=YES) { break; }
+    }
+   else
+    {
+    if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,iter))!=YES) { break; }
+    }
+
+
+   //if(websocketserver->call.status.is_connected!=YES)
+   if(websocketserver->call.status.is_ready!=YES)
+    {
+    if(0)
+     {
+     aaDebugf("azzzzox %s,%s,%s,eb=%i so=%i\nisin=%i iscon=%i isrdy=%i",
+     websocketserver->call.status.src_dot,websocketserver->call.status.local_dot,websocketserver->call.status.remote_dot,
+     websocketserver->call.status.extra_bytes,sizeof(_websocketservercalldata),
+     websocketserver->call.status.is_incoming,websocketserver->call.status.is_connected,websocketserver->call.status.is_ready);
+     }
+    break;
+    }
+
+   if(websocketserver->call.status.extra_bytes!=sizeof(_websocketservercalldata))
+    {
+    aaNote(0,"bzzzzox %s,%s,%s,eb=%i so=%i\nisin=%i iscon=%i isrdy=%i",
+    websocketserver->call.status.src_dot,websocketserver->call.status.local_dot,websocketserver->call.status.remote_dot,
+    websocketserver->call.status.extra_bytes,sizeof(_websocketservercalldata),
+    websocketserver->call.status.is_incoming,websocketserver->call.status.is_connected,websocketserver->call.status.is_ready );
+    break;
+    }
+   scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+   if(scd->stage!=1500)
+    {
+    break;
+    }
+   websocketserver->scd=scd;
+   //if(callhandle) { *callhandle=websocketserver->call.handle; }
+   //if(callstatus) { aaMemoryCopy(callstatus,sizeof(_tcpcallstatus),&websocketserver->call.status); }
+   return RET_YES;
+   }
+  }
+ return RET_NOTREADY;
+ }
+
+#endif
+
+
+
+ B aaNetWebsocketServerCallClose       (_websocketserver*websocketserver)
+ {
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+
+ //_websocketservercalldata*scd;
+ if(websocketserver==NULL) { return RET_MISSINGPARM; }
+ if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+ if(websocketserver->scd==NULL) { return RET_NOTREADY; }
+ //scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
+ //if(scd->is_close==0) { scd->is_close=1; }
+ if(websocketserver->scd->is_closing==0) { websocketserver->scd->is_closing=1; }
+ if(websocketserver->scd->is_close==0) { websocketserver->scd->is_close=1; }
+ //aaNetWebsocketClose(&scd->wock);
+
+ ///aaDebugf("closing line=%i",__LINE__);
+ return RET_YES;
+ }
+
+
+
+
+
+
+ B aaNetWebsocketServerCallNext        (_websocketserver*websocketserver,HP iter)//,HP callhandle,_tcpcallstatus*callstatus)
+ {
+ B ret;
+ _websocketservercalldata*scd;
+
+ if(websocketserver==NULL) { return RET_MISSINGPARM; }
+ if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
+ websocketserver->call.handle=0;
+ websocketserver->scd=NULL;
+// if(callhandle) { *callhandle=0; }
+ if(websocketserver->port.handle!=0)
+  {
+  while(1)
+   {
+   aaNetTcpPortStatus(websocketserver->port.handle,&websocketserver->port.status);
+   if(iter==NULL)
+    {
+    if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,0))!=YES) { break; }
+    }
+   else
+    {
+    if((ret=aaNetTcpPortCallNext(websocketserver->port.handle,&websocketserver->call.handle,&websocketserver->call.status,iter))!=YES) { break; }
+    }
+
+
    //if(websocketserver->call.status.is_connected!=YES)
    if(websocketserver->call.status.is_ready!=YES)
     {
@@ -91980,32 +92707,9 @@ typedef struct _FILE_STANDARD_INFO {
 
 
 
-
-
- B aaNetWebsocketServerCallClose       (_websocketserver*websocketserver)
- {
- //_websocketservercalldata*scd;
- if(websocketserver==NULL) { return RET_MISSINGPARM; }
- if(websocketserver->magic!=aaHPP(aaNetWebsocketServerNew)) { return RET_NOTINITIALIZED; }
- if(websocketserver->scd==NULL) { return RET_NOTREADY; }
- //scd=(_websocketservercalldata*)websocketserver->call.status.extra_data;
- //if(scd->is_close==0) { scd->is_close=1; }
- if(websocketserver->scd->is_closing==0) { websocketserver->scd->is_closing=1; }
- if(websocketserver->scd->is_close==0) { websocketserver->scd->is_close=1; }
- //aaNetWebsocketClose(&scd->wock);
-
- ///aaDebugf("closing line=%i",__LINE__);
- return RET_YES;
- }
-
-
-
-
-
 /*-----------------------------------------------------------------------*/
 
-
- B aaNetWebsocketClientNew             (_websocketclient*websocketclient,H sip,W sport,VP host,H ip,W port,B istls,VP fmt,...)
+ B aaNetWebsocketClientNew             (_websocketclient*websocketclient,H sip,W sport,VP host,H ip,W port,B istls,VP authtok,VP fmt,...)
  {
  B ret;
  _websocketclientcalldata*cd;
@@ -92014,6 +92718,8 @@ typedef struct _FILE_STANDARD_INFO {
  if(websocketclient==NULL) { return RET_MISSINGPARM; }
  aaMemoryFill(websocketclient,sizeof(_websocketclient),0);
  websocketclient->magic=aaHPP(aaNetWebsocketClientNew);
+ if(authtok) { aaStringCopy(websocketclient->auth_token,authtok); }
+ //appLog(0,F32,0,"%s [%s]",__func__,host);
  if((ret=aaNetTcpCallCreate(&websocketclient->call.handle,sip,sport,host,ip,port,istls))!=YES) { oops; }
  if((ret=aaNetTcpCallExtraDataSet(websocketclient->call.handle,sizeof(_websocketclientcalldata)))!=YES) { oops; }
  aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status);
@@ -92023,6 +92729,8 @@ typedef struct _FILE_STANDARD_INFO {
  aaStringCopyf(cd->url,"%s",str32k.buf);
  websocketclient->stage=10;
  websocketclient->cd=cd;
+ //appLog(0,F32,0,"connecting wock client");
+
  return RET_YES;
  }
 
@@ -92069,7 +92777,7 @@ typedef struct _FILE_STANDARD_INFO {
  if(websocketclient==NULL) { return RET_MISSINGPARM; }
  if(websocketclient->magic!=aaHPP(aaNetWebsocketClientNew)) { return RET_NOTINITIALIZED; }
  go=0;
- to=3;
+ to=5;
  while(1)
   {
   if((go++)>=to) { break; }
@@ -92081,23 +92789,25 @@ typedef struct _FILE_STANDARD_INFO {
   switch(websocketclient->stage)
    {
    case 10:
-   aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status);
+   if((ret=aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status))!=YES) { oops; }
+ ///  appLog(0,F32,0,"%i %i %i",websocketclient->call.status.is_ready,websocketclient->call.status.is_connected,websocketclient->call.status.is_closed);
    if(websocketclient->call.status.is_connected!=YES) { break; }
-   if(websocketclient->call.status.is_ready!=YES) { break; }
-   if(0) { aaDebugf("websocketclient connected, %i ",websocketclient->call.status.extra_bytes); }
+//   if(websocketclient->call.status.is_ready!=YES) { break; }
+   //if(0) { appLog(0,F32,0,"websocketclient connected, %i url=%s ",websocketclient->call.status.extra_bytes,cd->url); }
    websocketclient->stage=20;
    break;
 
    case 20:
    //if((ret=aaNetWebsocketInit(&cd->wock,websocketclient->call.handle,"ws://192.168.1.107:4456"))!=YES) { oops; }
    //if((ret=aaNetWebsocketInit(&cd->wock,websocketclient->call.handle,"wss://ws.postman-echo.com/raw"))!=YES) { oops; }
-   if((ret=aaNetWebsocketInit(&cd->wock,websocketclient->call.handle,"%s",cd->url))!=YES) { oops; }
+   if((ret=aaNetWebsocketInit(&cd->wock,websocketclient->call.handle,websocketclient->auth_token,"%s",cd->url))!=YES) { oops; }
    cd->wock.ping_xmit_last_ms=0;
    cd->wock.pong_xmit_last_ms=0;
    cd->wock.ping_rcve_last_ms=0;
    cd->wock.pong_rcve_last_ms=0;
    aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status);
    if(0) { aaDebugf("Websocket initialized"); }
+   //if(0) { appLog(0,F32,0,"Websocket initialized"); }
    cd->is_ws=1;
    websocketclient->stage=30;
    break;
@@ -92105,18 +92815,35 @@ typedef struct _FILE_STANDARD_INFO {
 
 
    case 23:
-   aaDebugf("websocketclient 23");
+   //aaDebugf("websocketclient 23");
    break;
 
 
 
    case 30:
-   if(websocketclient->call.status.is_closed)  {  websocketclient->stage=23;   break;   }
+   aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status);
+   if(websocketclient->call.status.is_closed)
+    {
+    //appLog(0,F32,0,"30 iscl %s",cd->url);
+    websocketclient->stage=23;
+    break;
+    }
    if((ret=aaNetWebsocketYield(&cd->wock))!=YES) { oops;  }
-   if(cd->wock.is_failure)                       { aaDebugf("line=%i failure a",__LINE__,cd->wock.fail_reason); websocketclient->stage=23;  break; }
-   if(websocketclient->call.status.ms>=aaSecs(20))        { aaDebugf("stage10 timeout");  websocketclient->stage=23; break; }
+   if(cd->wock.is_failure)
+    {
+    //appLog(0,F32,0,"line=%i failure a %s",__LINE__,cd->wock.fail_reason,cd->url);
+    websocketclient->stage=23;
+    break;
+    }
+   if(websocketclient->call.status.ms>=aaSecs(20))
+    {
+    //appLog(0,F32,0,"stage10 timeout");
+    websocketclient->stage=23;
+    break;
+    }
    if(cd->wock.is_open!=YES)                     { break; }
    if(0) { aaDebugf("Websocket websocketclient handshaked and open on %s",cd->wock.url); }
+   //if(0) { appLog(0,F32,0,"Websocket websocketclient handshaked and open on %s",cd->wock.url); }
    //aaDebugf("websocketclient wock open");
    cd->is_ready=YES;
    websocketclient->stage=1500;
@@ -92159,8 +92886,8 @@ typedef struct _FILE_STANDARD_INFO {
     }
    if(cd->is_close==0)
     {
-    if(websocketclient->call.status.ms>(20000/4)&&websocketclient->call.status.rcve_inactivity>(20000*6)) {  cd->is_close=1; }
-    if(((websocketclient->call.status.rcve_bytes==0&&websocketclient->call.status.xmit_bytes==0)||(websocketclient->call.status.closed_ms>=aaSecs(3)))&&(websocketclient->call.status.is_closed)) { cd->is_close=1;  }
+    if(websocketclient->call.status.ms>(20000/4)&&websocketclient->call.status.rcve_inactivity>(20000*6)) { oof;  cd->is_close=1; }
+    if(((websocketclient->call.status.rcve_bytes==0&&websocketclient->call.status.xmit_bytes==0)||(websocketclient->call.status.closed_ms>=aaSecs(3)))&&(websocketclient->call.status.is_closed)) { oof; cd->is_close=1;  }
     }
    if(ret!=RET_YES) { break; }
 
@@ -92168,7 +92895,7 @@ typedef struct _FILE_STANDARD_INFO {
     {
     if(bytes==2)         { hv=*(WP)&the_data[0];  hv=aaNumSwapWord(hv);    }
     aaNetWebsocketClose(&cd->wock);
-    if(cd->is_close==0)   { aaDebugf("closeline %u",__LINE__);  cd->is_close=1;    }
+    if(cd->is_close==0)   {  aaDebugf("closeline %u",__LINE__);  cd->is_close=1;    }
     break;
     }
 
@@ -92214,6 +92941,7 @@ typedef struct _FILE_STANDARD_INFO {
  if(websocketclient->magic!=aaHPP(aaNetWebsocketClientNew)) { return RET_NOTINITIALIZED; }
  cd=(_websocketclientcalldata*)websocketclient->call.status.extra_data;
  if(cd->is_close!=0) { return RET_YES; }
+ oof;
  cd->is_close=1;
  return RET_YES;
  }
