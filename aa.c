@@ -32,7 +32,7 @@ linker options
 */
 
 
- H aa_hyper_parm_0=8;   // aa_jsonSystemDecode
+ H aa_hyper_parm_0=64;   // aa_jsonSystemDecode
  H aa_hyper_parm_1=1;   // aaShellYield
  H aa_hyper_parm_2=3;   // aaShellRead was 4
  H aa_hyper_parm_3=16;  // aaJsonStatus , number of aa_jsonSystemDecode's called
@@ -49,7 +49,8 @@ linker options
 
 /*-----------------------------------------------------------------------*/
 
- B appLog                              (H index,H lines,H plus,VP fmt,...);
+ //B appLog                              (H index,H lines,H plus,VP fmt,...);
+ //B appLog                              (H what,VP fmt,...);
 
  H aa_note_kill_count                  =0;
  H aa_note_show_count                  =0;
@@ -63,6 +64,8 @@ linker options
  #define aa_VERSION                    309
 
 /*-----------------------------------------------------------------------*/
+
+ #define aa_LOGG_NET                   0
 
  #define aa_SHOW_PROFILE               0
  #define aa_SHOW_VERBOSE               0
@@ -2470,6 +2473,7 @@ _output_error:
  {
  H self_handle;
  H stage;
+ H last_stage;
  HANDLE resolver_handle;
  B host_ent[MAXGETHOSTSTRUCT];
  _dnsstatus status;
@@ -11099,16 +11103,20 @@ fail:
 
  B aaFocusToCodeBlocks                 (V)
  {
- B ret;
  HWND wnd;
 
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
  #endif
  aaFocusToHwnd(GetDesktopWindow());
- if((wnd=FindWindow("wxWindowClassNR",0))==NULL) { return RET_NOTFOUND; }
- ret=aaFocusToHwnd(wnd);
- return ret;
+ if((wnd=FindWindow("wxWindowClassNR",0))==NULL)
+  {
+  if((wnd=FindWindow("wxWindowNR",0))==NULL)
+   {
+   return RET_NOTFOUND;
+   }
+  }
+ return(aaFocusToHwnd(wnd));
  }
 
 
@@ -16400,7 +16408,7 @@ redo:
  if(memoryunit==NULL) { return RET_BADPARM; }
  if(bytes==0) { return RET_BADPARM; }
  memoryunit->bytes=0;
- memoryunit->offset=0;
+// memoryunit->offset=0;
  memoryunit->used=0;
  memoryunit->mem=NULL;
  if((ret=aaMemoryAllocate((VP)&memoryunit->mem,bytes))!=YES)
@@ -16480,7 +16488,7 @@ redo:
  if(bytes!=memoryunit->bytes) { oof; return RET_FAILED; }
  if((ret=aaMemoryRelease(memoryunit->mem))!=YES) { oops; return ret; }
  memoryunit->bytes=0;
- memoryunit->offset=0;
+// memoryunit->offset=0;
  memoryunit->used=0;
  memoryunit->mem=NULL;
  return RET_YES;
@@ -22102,7 +22110,6 @@ VP aaOptionsGet                        (_options*options,DP num,VP data,...)
   if (sec != SEC_E_OK) { aaNote(0,"tlssend sec err=%x",sec); ctx->state = TLS_STATE_UNKNOWN_ERROR;	return -1;	}
   total = buffers[0].cbBuffer + buffers[1].cbBuffer + buffers[2].cbBuffer;
   sent = 0;
-
   while (sent != total)
    {
    d = send(calp->sock, wbuffer + sent, total - sent, 0);
@@ -39734,7 +39741,7 @@ static const htmlentity_t ent[] =
  if(chars==0) { aaStringLen(str,&chars); }
  if(str==mem)
   {
-  if((ret=aa_MemoryTemp((VP)&tmp,chars+_32K,aa_MEMORYTEMP_Base64))!=RET_YES) {oops; }
+  if((ret=aa_MemoryTemp((VP)&tmp,chars+_256K,aa_MEMORYTEMP_Base64))!=RET_YES) {oops; }
   aaCast(sp,BP,str);
   aaCast(mp,BP,tmp);
   }
@@ -45727,6 +45734,8 @@ soff=moff=stage=0;
  //y=(((lat*-1.0)+90.0)*(size->h/180.0));
  cord->x=aaNumClamp((N)x,0,(N)(size->w-1));
  cord->y=aaNumClamp((N)y,0,(N)(size->h-1));
+ cord->x=(N)x;
+ cord->y=(N)y;
  return RET_YES;
  }
 
@@ -47346,6 +47355,62 @@ soff=moff=stage=0;
  return(aaQueStrap(handle,sl,txt));
  }
 
+
+
+
+
+ B aaQueDuplexStatus                   (_queunit*ique,_queunit*oque)
+ {
+ B ret;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(ique) { if((ret=aaQueStatus(ique->handle,&ique->status))!=YES) { return ret; }  }
+ if(oque) { if((ret=aaQueStatus(oque->handle,&oque->status))!=YES) { return ret; }  }
+ return RET_YES;
+ }
+
+
+
+
+ B aaQueDuplexIo                       (_queunit*ique,_queunit*oque,H flag,H bytes,VP data)
+ {
+ B ret;
+ #ifdef aa_VERSION
+ aa_ZIAG(__FUNCTION__);
+ #endif
+ if(ique==NULL) { return RET_MISSINGPARM; }
+ if(oque==NULL) { return RET_MISSINGPARM; }
+
+ if((ret=aaQueDuplexStatus(ique,oque))!=YES) { return ret; }
+
+ //if((res=aaQueStatus(ique->handle,&ique->status))!=YES) { return ret; }
+ //if((res=aaQueStatus(oque->handle,&oque->status))!=YES) { return ret; }
+ switch(flag)
+  {
+  default:  return RET_BADPARM;
+  case 0: //read ique
+  if((ret=aaQueRead(ique->handle,bytes,data))!=YES)  {  return ret;  }
+  break;
+  case 1: //read oque
+  if((ret=aaQueRead(oque->handle,bytes,data))!=YES)  {  return ret;  }
+  break;
+  case 2: //write ique
+  if((ret=aaQueWrite(ique->handle,bytes,data))!=YES) {  oops; }
+  break;
+  case 3: //write oque
+  if((ret=aaQueWrite(oque->handle,bytes,data))!=YES) {  oops; }
+  break;
+  }
+
+ if((ret=aaQueDuplexStatus(ique,oque))!=YES) { return ret; }
+ //if((res=aaQueStatus(ique->handle,&ique->status))!=YES) { oops; return ret; }
+ //if((res=aaQueStatus(oque->handle,&oque->status))!=YES) { oops; return ret; }
+ return RET_YES;
+ }
+
+
+
 /*-----------------------------------------------------------------------*/
 
 
@@ -48385,6 +48450,9 @@ soff=moff=stage=0;
    aaStringCopyf(netinfo->host_name,"%s",fixed_info_ptr->HostName);
    aaStringCopyf(netinfo->domain_name,"%s",fixed_info_ptr->DomainName);
    aaStringCopyfLen(txt,&sl,"%s",fixed_info_ptr->DnsServerList.IpAddress.String);
+
+   //aaLog(-555,"line=%i  ms=%I64d domain_name=%s host_name=%s",__LINE__,aaMsRunning(),netinfo->domain_name,netinfo->host_name);
+
    first=YES;
    while(1)
     {
@@ -48401,6 +48469,7 @@ soff=moff=stage=0;
     else           {  ip_addr_ptr=ip_addr_ptr->Next;   }
     if(!ip_addr_ptr) { break; }
     aaStringCopyfLen(txt,&sl,"%s",ip_addr_ptr->IpAddress.String);
+    //aaLog(-555,"line=%i  ms=%I64d",__LINE__,aaMsRunning());
     first=NO;
     }
    switch(fixed_info_ptr->NodeType)
@@ -49742,6 +49811,10 @@ soff=moff=stage=0;
   //aaLog(-555,"stil in dnsyield, did udp create ok ??");
   if((ret=aaNetUdpStatus(narp->udp.handle,&narp->udp.status))!=YES) oops;
   //aaLog(-555,"udp for dns created ok");
+
+  #if aa_LOGG_NET==1
+  aaLog(-555,"%s line=%i ms=%I64d stage=%i ip=%u",__func__,__LINE__,aaMsRunning(),narp->stage,ip);
+  #endif
   narp->stage=120;
   break;
 
@@ -49773,6 +49846,9 @@ soff=moff=stage=0;
   qinfo=(_DNS_QUESTION*)&narp->buf[sizeof(_DNS_HEADER)+narp->dnsName_sl+1];
   qinfo->qtype=htons(narp->status.mode);
   qinfo->qclass=htons(1);
+  #if aa_LOGG_NET==1
+  aaLog(-555,"%s line=%i ms=%I64d stage=%i, query=%s",__func__,__LINE__,aaMsRunning(),narp->stage,narp->status.query);
+  #endif
   narp->stage=140;
   break;
 
@@ -49817,6 +49893,11 @@ soff=moff=stage=0;
   if(narp->i_pkt.address.ip!=narp->o_pkt.address.ip)   {   narp->stage=160;   break;   }
   if(dns->id!=narp->id_match)   {   narp->stage=160;   break;   }
   //aaDebugf("rcode=%i stage=%i fwd=%i if=%i inf=%i isf=%i",dns->rcode,narp->stage,narp->status.is_forward,narp->status.is_found,narp->status.is_notfound,narp->status.is_failed);
+
+  #if aa_LOGG_NET==1
+  aaLog(-555,"%s line=%i ms=%I64d stage=%i, rcode=%i ans_count=%i",__func__,__LINE__,aaMsRunning(),narp->stage,dns->rcode,ntohs(dns->ans_count));
+  #endif
+
   if(dns->rcode==3)
    {
    narp->status.is_inprogress=NO;
@@ -49836,6 +49917,9 @@ soff=moff=stage=0;
    narp->answers[i].resource=(_DNS_R_DATA*)(reader);
    reader=reader+sizeof(_DNS_R_DATA);
    narp->answers[i].rdata_off=0;
+   #if aa_LOGG_NET==1
+   aaLog(-555,"%s line=%i ms=%I64d stage=%i, i=%i resource->type=%i",__func__,__LINE__,aaMsRunning(),narp->stage,i,ntohs(narp->answers[i].resource->type));
+   #endif
    switch(ntohs(narp->answers[i].resource->type))
     {
     case 1: //if its an ipv4 address
@@ -49845,6 +49929,9 @@ soff=moff=stage=0;
      narp->answers[i].rdata[narp->answers[i].rdata_off]=reader[j];
      narp->answers[i].rdata_off++;
      }
+    #if aa_LOGG_NET==1
+    aaLog(-555,"resource_type=ipv4");
+    #endif
     reader=reader+ntohs(narp->answers[i].resource->data_len);
     break;
 
@@ -49854,6 +49941,9 @@ soff=moff=stage=0;
     aaStringLen(rrr,&sl);
     aaStringCopyf(&narp->answers[i].rdata[narp->answers[i].rdata_off],"%s",rrr);
     narp->answers[i].rdata_off+=(sl+1);
+    #if aa_LOGG_NET==1
+    aaLog(-555,"resource_type=NS");
+    #endif
     reader=reader+stop;
     break;
 
@@ -49861,6 +49951,9 @@ soff=moff=stage=0;
     aaStringNull(narp->answers[i].rdata);
     aa_NetDnsReadName(reader,narp->buf,&stop,rrr);
     aaStringCopyf(&narp->answers[i].rdata[narp->answers[i].rdata_off],"%s",rrr);
+    #if aa_LOGG_NET==1
+    aaLog(-555,"resource_type=cname");
+    #endif
     reader=reader+ntohs(narp->answers[i].resource->data_len);
     break;
 
@@ -49872,6 +49965,9 @@ soff=moff=stage=0;
     reader=reader+stop;
     aa_NetDnsReadName(reader,narp->buf,&stop,rrr);
     aaStringCopyf(&narp->answers[i].rdata[128],"%s",rrr);
+    #if aa_LOGG_NET==1
+    aaLog(-555,"resource_type=rdata");
+    #endif
     reader=reader+stop;
     aaMemoryCopy(&narp->answers[i].rdata[256],sizeof(H)*5,reader);
     break;
@@ -49884,6 +49980,9 @@ soff=moff=stage=0;
     aaStringLen(rrr,&sl);
     aaStringCopyf(&narp->answers[i].rdata[narp->answers[i].rdata_off],"%s",rrr);
     narp->answers[i].rdata_off+=(sl+1);
+    #if aa_LOGG_NET==1
+    aaLog(-555,"resource_type=mx");
+    #endif
     reader=reader+(ntohs(narp->answers[i].resource->data_len)-2);
     break;
 
@@ -49891,11 +49990,16 @@ soff=moff=stage=0;
     aaStringNull(narp->answers[i].rdata);
     aa_NetDnsReadName(reader,narp->buf,&stop,rrr);
     aaStringCopyf(&narp->answers[i].rdata[narp->answers[i].rdata_off],"%s",rrr);
+    #if aa_LOGG_NET==1
+    aaLog(-555,"resource_type=txt");
+    #endif
     reader=reader+ntohs(narp->answers[i].resource->data_len);
     break;
 
     default:
+    #if aa_LOGG_NET==1
     aaNote(0,"!%s type=%u len=%u stop=%i",narp->answers[i].name,ntohs(narp->answers[i].resource->type),ntohs(narp->answers[i].resource->data_len),stop);
+    #endif
     reader=reader+ntohs(narp->answers[i].resource->data_len);
     break;
     }
@@ -50029,25 +50133,35 @@ soff=moff=stage=0;
    {
    if(narp->status.is_forward==NO)
     {
+   // aaLog(-555,"line=%i  ms=%I64d query=%s is_forward=%i mode=%i query=%s",__LINE__,aaMsRunning(),narp->status.is_forward,narp->status.mode,narp->status.query);
     if(narp->status.mode==aa_DNS_MODE_A)
      {
      if(aa.net_system.dns_cache.magic!=aaHPP(aaListNew))
       {
       if((ret=aaListNew(&aa.net_system.dns_cache,YES,_64K,NO,NO))!=YES) { oops; }
-
 //      aaDebugf("dns_cache created");
+      #if aa_LOGG_NET==1
+      aaLog(-555,"line=%i  ms=%I64d %s dns_cache created",__LINE__,aaMsRunning(),__func__);
+      #endif
       }
      ret=aaListFind(&aa.net_system.dns_cache,&li,(VP)&kp,(VP)&vp,"%s",narp->status.query);
      if(ret==RET_NOTFOUND)
       {
+      #if aa_LOGG_NET==1
+      aaLog(-555,"line=%i  ms=%I64d %s query=%s",__LINE__,aaMsRunning(),__func__,narp->status.query);
+      #endif
       aaTimeUtcExGet(&dcld.first_utc);
       aaTimeUtcExGet(&dcld.last_utc);
       aaMemoryCopy(&dcld.dns_status,sizeof(_dnsstatus),&narp->status);
       if((ret=aaListAppend(&aa.net_system.dns_cache,&li,narp->status.query,sizeof(_dnscachelistdata),&dcld))!=YES) { oops; }
+//      aaLog(-555,"%s line=%i  ms=%I64d query=%s is_forward=%i mode=%i list append=%s",arets,__LINE__,aaMsRunning(),narp->status.is_forward,narp->status.mode,dcld->);
       }
      else
      if(ret==RET_YES)
       {
+      #if aa_LOGG_NET==1
+      aaLog(-555,"line=%i  ms=%I64d %s query=%s",__LINE__,aaMsRunning(),__func__,narp->status.query);
+      #endif
       dcldptr=(_dnscachelistdata*)vp;
       aaTimeUtcExGet(&dcldptr->last_utc);
       }
@@ -50058,10 +50172,10 @@ soff=moff=stage=0;
      }
     }
    }
-
-
   narp->stage=200;
   break;
+
+
 
   case 200:
   break;
@@ -52471,6 +52585,11 @@ oof;
  narp->status.bypass=bypass;
  if(fwd==YES)
   {
+  #if aa_LOGG_NET==1
+  aaLog(-555,"%s line=%i ms=%I64d query=%s mode=%i fwd=%s, ",__func__,__LINE__,aaMsRunning(),narp->status.query,narp->status.mode,aaBoolString(fwd));
+  #endif
+  //aaLog(-555,"fwd=yes, line=%i",__LINE__);
+  //aaLog(-555,"%s line=%i ms=%I64d query=%s mode=%i",__func__,aaBoolString(fwd),__LINE__,aaMsRunning(),narp->status.query,narp->status.mode);
   //aaDebugf("fwd=%i %s",fwd,narp->status.query);
   narp->status.is_forward=fwd;
   narp->status.is_inprogress=YES;
@@ -52481,13 +52600,18 @@ oof;
   }
  else
   {
+  #if aa_LOGG_NET==1
+  aaLog(-555,"%s line=%i ms=%I64d query=%s mode=%i fwd=%s, ",__func__,__LINE__,aaMsRunning(),narp->status.query,narp->status.mode,aaBoolString(fwd));
+  #endif
+//  aaLog(-555,"fwd=no, line=%i ms=%I64d query=%s mode=%i",__LINE__,aaMsRunning(),narp->status.query,narp->status.mode);
   //aaDebugf("fwd=%i %s, mode=%i",fwd,narp->status.query,narp->status.mode);
   narp->status.is_forward=fwd;
   narp->status.is_inprogress=YES;
   narp->timeout=500;
   narp->stage=100;
   }
- logg("name resolver Create ok");
+ //aaLog(-555,"line=%i  ms=%I64d %s resolver created ok",__LINE__,aaMsRunning(),__func__);
+// logg("name resolver Create ok");
  return RET_YES;
  }
 
@@ -52532,9 +52656,13 @@ oof;
  if((ret=aa_ObjectCheck(aa.net_system.dns_object_id,handle,(VP)&narp,NULL))!=RET_YES) { return ret; }
  aa_NetDnsYield((VP)&narp);
  ///if(aaMathRand32(0,130)==0)  {  aaCustomLog("narp->stage=%i",narp->stage);  }
-   //aaDebugf("ee %i",narp->stage);
+ //aaDebugf("%s line=%i stage=%i",__func__,__LINE__,narp->stage);
  if(narp->stage==3) /// complete
   {
+  #if aa_LOGG_NET==1
+  aaLog(-555,"line=%i  ms=%I64d query=%s",__LINE__,aaMsRunning(),dnsstatus->query);
+  #endif
+  //aaLog(-555,"line=%i  ms=%I64d query=%s",__LINE__,aaMsRunning(),dnsstatus->query);
   narp->status.is_inprogress=NO;
   aaCast(hp,struct hostent *,narp->host_ent);
   for(i=0;i<32;i++)
@@ -52564,6 +52692,12 @@ oof;
  else
  if(narp->stage>=100&&narp->stage<=180)
   {
+  if(narp->stage!=narp->last_stage)
+   {
+   ///aaLog(-555,"line=%i  ms=%I64d func=%s last_stage=%i stage=%i",__LINE__,aaMsRunning(),__func__,narp->last_stage,narp->stage);
+   }
+  narp->last_stage=narp->stage;
+
   //aaDebugf("stage=%i fwd=%i if=%i inf=%i isf=%i",narp->stage,narp->status.is_forward,narp->status.is_found,narp->status.is_notfound,narp->status.is_failed);
   }
  if(dnsstatus) { aaMemoryCopy(dnsstatus,sizeof(_dnsstatus),&narp->status); }
@@ -53276,9 +53410,9 @@ oof;
  _httprequest req;
  _httpheader hed;
  B buf[_64K];
- B etc[_1K];
- B txt[_1K];
- B str[_1K];
+ B etc[_2K];
+ B txt[_2K];
+ B str[_2K];
  H sl,i,ul;
 // _digestunit dig;
  B asca,ascb;
@@ -53298,12 +53432,10 @@ oof;
    {
    if((ret=aaNetTcpCallStatus(websocket->tcp_handle,&cs))!=YES) { return ret; }
    }
-  //aaTimerTikElapsed(websocket->ms_root,&websocket->ms);
   switch(websocket->stage)
    {
    case WEBSOCKET_STAGE_HANDSHAKE:
    case WEBSOCKET_STAGE_OPEN:
-   //if(cs.is_ready!=YES)   {   break;   }
    if(cs.is_connected!=YES) { break; }
    if(cs.is_ready!=YES)     { break; }
    if(cs.is_closed)         { break; }
@@ -53324,14 +53456,12 @@ oof;
       break;
       }
      aaStringCopyf(websocket->url,"%s",req.url);
-     ///aaCustomLog("incoming websocket request=%s",req.url);
      websocket->phaze=20;
      break;
 
      case 20:
      if((ret=aaNetTcpCallStringRead(websocket->tcp_handle,&chars,0,sizeof(buf)-2,buf))!=YES)
       {
-      //aaCustomLog("%u %s, %i",websocket->tcp_handle,arets,chars);
       break;
       }
      if(chars>400)
@@ -53383,20 +53513,16 @@ oof;
      websocket->pong_xmit_last_ms=0;//aaMsRunning();
      websocket->ping_rcve_last_ms=0;//aaMsRunning();
      websocket->pong_rcve_last_ms=0;//aaMsRunning();
-
      websocket->is_open=YES;
      websocket->phaze=50;
-///     aaCustomLog("ch=%u incoming call is WEBSOCKET OPEN",websocket->tcp_handle);
      break;
      }
     }
    else                     //-------- outgoing calls !!!!!!!!!
     {
-//    aaDebugf("outgming phz=%i",websocket->phaze);
     switch(websocket->phaze)
      {
      case 0:
-     ///appLog(0,F32,0,"%s is_dg=%i",__func__,websocket->is_dg);
      aaStringRandomSet(buf,16,1,1,1,YES);
      if(aaBase64Encode(buf,0,str,&sl)!=YES) oof;
      aaStringCopyf(websocket->out_key,"%s",str);
@@ -53415,31 +53541,29 @@ oof;
      aaStringCopyf(websocket->sec_key,"%s",txt);
      aaStringNull(buf);
      aaStringAppendfCrlf(buf,"GET %s HTTP/1.1",websocket->url);
-     //aaStringAppendfCrlf(buf,"GET ws://192.168.1.107:4456/ws/demo/ HTTP/1.1",websocket->url);
-     ///aaStringAppendfCrlf(buf,"GET %s HTTP/1.1",websocket->url);
-     //if(cs.host[0]!=NULL_CHAR)  {   aaStringAppendfCrlf(buf,"Host: %s:%u",cs.host,cs.remote_adr.port);     }
      if(cs.host[0]!=NULL_CHAR)  {   aaStringAppendfCrlf(buf,"Host: %s",cs.host,cs.remote_adr.port);     }
      else                       {   aaStringAppendfCrlf(buf,"Host: %s",cs.remote_dot);     }
-     //aaStringAppendfCrlf(buf,"Host: 192.168.1.107:4456");//,cs.remote_dot);
      aaStringAppendfCrlf(buf,"Connection: Upgrade");
+     aaStringAppendfCrlf(buf,"Pragma: no-cache");
+     aaStringAppendfCrlf(buf,"Cache-Control: no-cache");
      aaStringAppendfCrlf(buf,"Upgrade: websocket");
      aaStringAppendfCrlf(buf,"Sec-WebSocket-Version: 13");
+     aaStringAppendfCrlf(buf,"Accept-Language: en-US,en;q=0.9");
      aaStringAppendfCrlf(buf,"Sec-WebSocket-Key: %s",websocket->out_key);
-     //if(aaStringICompare(cs.host,"api.deepgram.com",0)==YES)
+     //aaStringAppendfCrlf(buf,"Origin: https://xdosh.com");
      if(websocket->auth_token[0])
       {
       aaStringAppendfCrlf(buf,"Authorization: %s",websocket->auth_token);
-      //aaStringAppendfCrlf(buf,"Authorization: Token 72d69cb7f8a3029cfbb2e6d1f8033d387a4e225b");
       }
      if(aaNetTcpCallWritef(websocket->tcp_handle,"%s\r\n",buf)!=YES) { oof; break; }
+//     appLog(3,"%s",buf);
      websocket->phaze=20;
      break;
 
      case 20:
      case 26:
-     //aaDebugf(".. rb=%i trb=%I64d",cs.rcve_bytes,cs.rcve_bytes_total);
      if((ret=aaNetTcpCallStringRead(websocket->tcp_handle,&chars,0,sizeof(buf)-2,buf))!=YES)    {      break;      }
-//     appLog(0,F32,0,"client phaze=%i chars=%i buf=[%s]",websocket->phaze,chars,buf);
+     //appLog(3,"%s",buf);
      if(chars>400)
       {
       websocket->is_failure=YES;
@@ -53448,7 +53572,6 @@ oof;
       break;
       }
      if(aaNetHttpHeaderReadFromString(&hed,chars,buf)!=YES) { break; }
-     //if(aaNetHttpHeaderRead(websocket->tcp_handle,&hed)!=YES) break;
      if(aaStringICompare(hed.field,"sec-websocket-accept",0)==YES)
       {
       if(aaStringCompare(hed.data,websocket->sec_key,0)==YES) {  websocket->phaze=26; }
@@ -53460,11 +53583,8 @@ oof;
      websocket->pong_xmit_last_ms=0;//aaMsRunning();
      websocket->ping_rcve_last_ms=0;//aaMsRunning();
      websocket->pong_rcve_last_ms=0;//aaMsRunning();
-  //   websocket->ping_last_ms=0;//aaMsRunning();
-//     websocket->pong_last_ms=0;//aaMsRunning();
      websocket->is_open=YES;
      websocket->phaze=50;
-///     aaCustomLog("ch=%u outgoing call is WEBSOCKET OPEN",websocket->tcp_handle);
      break;
      }
     }
@@ -53474,7 +53594,6 @@ oof;
    break;
    }
   }
- //if(wockstatus) { aaMemoryCopy(wockstatus,sizeof(_wockstatus),&websocket->status); }
  return RET_YES;
  }
 
@@ -53602,7 +53721,7 @@ oof;
  {
  B ret;
  _tcpcallstatus cs;
- H todo,len,i,j;
+ H todo,cando,len,i,j;
  Q qlen;
  BP bp;
  BP dp;
@@ -53630,18 +53749,20 @@ oof;
   websocket->frame_data_offset=0;
   websocket->frame_size_bytes=0;
   websocket->frame_mask_offset=0;
-  todo=aaNumRoof(cs.rcve_bytes,16);
+  cando=cs.rcve_bytes;
+  todo=aaNumRoof(cando,16);
   if(todo<2) break;
 
   if(aaNetTcpCallPeek(websocket->tcp_handle,0,todo,zuf)!=YES) oof;
   websocket->frame_is_fin=aaBitGet(zuf[0],7);
   websocket->frame_is_mask=aaBitGet(zuf[1],7);
   websocket->frame_opcode=zuf[0]&0x0f;
-  len=zuf[1]&~128;
+  len=zuf[1]&0x7f;
   websocket->frame_bytes=2;
   if(len<=125)
    {
    websocket->frame_size_bytes=0;
+   websocket->frame_bytes+=websocket->frame_size_bytes;
    if(websocket->frame_is_mask) {  websocket->frame_mask_offset=websocket->frame_bytes+websocket->frame_size_bytes;  websocket->frame_bytes+=4; }
    websocket->frame_data_offset=websocket->frame_bytes+websocket->frame_size_bytes;
    websocket->frame_data_bytes=len;
@@ -53651,9 +53772,9 @@ oof;
    {
    websocket->frame_size_bytes=2;
    websocket->frame_bytes+=websocket->frame_size_bytes;
-   if(websocket->frame_is_mask) {  websocket->frame_mask_offset=websocket->frame_bytes;  websocket->frame_bytes+=4; }
+   if(websocket->frame_is_mask) {  websocket->frame_mask_offset=websocket->frame_bytes+websocket->frame_size_bytes;  websocket->frame_bytes+=4; }
    websocket->frame_data_offset=websocket->frame_bytes;
-   if(todo<4) { break; }
+   if(todo<4) { oof; break; }
    len=*(WP)&zuf[2];
    len=aaNumSwapWord(len);
    websocket->frame_data_bytes=len;
@@ -53661,17 +53782,19 @@ oof;
   else
   if(len==127)
    {
-   websocket->frame_size_bytes=6;
+   //oof;
+   websocket->frame_size_bytes=8;
    websocket->frame_bytes+=websocket->frame_size_bytes;
    if(websocket->frame_is_mask) { websocket->frame_mask_offset=websocket->frame_bytes;  websocket->frame_bytes+=4; }
    websocket->frame_data_offset=websocket->frame_bytes;
-   if(todo<8) { break; }
+   if(todo<8) { oof; break; }
    bp=(BP)&zuf[2];
    qlen=*(QP)&bp[0];     qlen=aaNumSwapQuad(qlen);    *(QP)&bp[0]=qlen;
    len=*(HP)&bp[0];       len=aaNumSwapDword(len);    *(HP)&bp[0]=len;
    len=*(HP)&bp[4];       len=aaNumSwapDword(len);    *(HP)&bp[4]=len;
    qlen=*(QP)&bp[0];
-   websocket->frame_data_bytes=qlen;
+   //appLog(3,"ql=%I64d",qlen);
+   websocket->frame_data_bytes=(H)qlen;
    }
   websocket->frame_bytes+=websocket->frame_data_bytes;
   if(todo<websocket->frame_data_offset) break;
@@ -55926,7 +56049,10 @@ oof;
 
  #if 1
  if((ret=aaQueStatus(calp->xmit_que,&qs))!=RET_YES) { oops; }
- if(calp->status.xmit_bytes!=qs.bytes) { oof; }
+ if(calp->status.xmit_bytes!=qs.bytes)
+  {
+  aaNote(0,"xmit_bytes=%i qs.bytes=%i",calp->status.xmit_bytes,qs.bytes);
+   }
  calp->status.xmit_bytes=qs.bytes;
  #endif
  aaCast(bp,BP,data);
@@ -57072,10 +57198,10 @@ oof;
  httpresult->is_failed=NO;
  if(str==NULL) { return RET_BADPARM; }
  if(bytes==0) { aaStringLen(str,&bytes); }
- if(bytes==0) { return RET_BADPARM; }
+ if(bytes==0) { aaNote(0,"[%s]",str); return RET_BADPARM; }
  chars=bytes;
  aaMemoryFill(httpresult,sizeof(_httpresult),0);
- if(chars>512) { httpresult->is_failed=YES; return RET_YES; }
+ if(chars>512) { httpresult->is_failed=YES; oof; return RET_YES; }
  aaStringCopy(txt,str);
  if(chars>1)
   {
@@ -57083,9 +57209,9 @@ oof;
   aaStringRemoveMultipleSpaces(txt,chars,NO);
   aaStringLen(txt,&chars);
   }
- if(chars<12) {          httpresult->is_failed=YES; return RET_YES; }
- if(txt[8]!=SPACE_CHAR) {      httpresult->is_failed=YES; return RET_YES; }
- if(aaStringIsNumerical(&txt[9],0,0,3)!=RET_YES)  {      httpresult->is_failed=YES;  return RET_YES; }
+ if(chars<12)           { oof;   httpresult->is_failed=YES; return RET_YES; }
+ if(txt[8]!=SPACE_CHAR) { oof;   httpresult->is_failed=YES; return RET_YES; }
+ if(aaStringIsNumerical(&txt[9],0,0,3)!=RET_YES)  { oof;     httpresult->is_failed=YES;  return RET_YES; }
  aaStringNCopy(&token[0],&txt[0],8,YES);
  aaStringNCopy(&token[1],&txt[9],3,YES);
  aaStringLower(token[0],0,NULL);
@@ -57104,12 +57230,6 @@ oof;
  httpresult->is_success=YES;
  return RET_YES;
  }
-
-
-
-
-
-
 
 
 
@@ -57271,12 +57391,24 @@ oof;
  else
  if(which==aa_HTTPFIELD_EXPIRES||which==aa_HTTPFIELD_LASTMODIFIED||which==aa_HTTPFIELD_DATE||which==aa_HTTPFIELD_IFMODIFIEDSINCE)
   {
+  //aaDebugf("which=%i sl=%i %s",which,sl,token[1]);
   if(which==aa_HTTPFIELD_EXPIRES&&sl<10)
    {
    if(aaStringExplode(token[1],0,&se,SPACE_CHAR)==YES)
     {
     if(se.count==1&&(se.type[0]==1||se.type[0]==2))
      {
+     if(aaStringToNumber(token[1],0,&httpheader->value[0],NULL,0,0)==YES)
+      {
+      aaStringCopy(httpheader->field,token[0]);
+      aaStringCopy(httpheader->data,token[1]);
+      httpheader->is_success=YES;
+      httpheader->is_failed=NO;
+      httpheader->field_code=aa_HTTPFIELD_EXPIRES;
+      aaStringLen(httpheader->data,&httpheader->data_bytes);
+      return RET_YES;
+      }
+
      aaStringCopy(httpheader->field,token[0]);
      aaStringCopy(httpheader->data,token[1]);
      httpheader->is_success=YES;
@@ -57462,9 +57594,6 @@ oof;
    return RET_YES;
    }
   }
-
-
-
 
  httpheader->is_success=YES;
  aaStringLen(httpheader->data,&httpheader->data_bytes);
@@ -57941,6 +58070,18 @@ oof;
     {
     if(se.count==1&&(se.type[0]==1||se.type[0]==2))
      {
+     if(aaStringToNumber(token[1],0,&httpheader->value[0],NULL,0,0)==YES)
+      {
+      aaStringCopy(httpheader->field,token[0]);
+      aaStringCopy(httpheader->data,token[1]);
+      httpheader->is_success=YES;
+      httpheader->is_failed=NO;
+      httpheader->field_code=aa_HTTPFIELD_EXPIRES;
+      aaStringLen(httpheader->data,&httpheader->data_bytes);
+      return RET_YES;
+      }
+
+
      aaStringCopy(httpheader->field,token[0]);
      aaStringCopy(httpheader->data,token[1]);
      httpheader->is_success=YES;
@@ -79724,58 +79865,58 @@ u8       PCM unsigned 8-bit
  aaStringCopyf(wav->file_name,"%s",filename);
  if(filename==NULL) { oof; return RET_BADPARM; }
  if((ret=aaFileStreamCreate(&fh,filename,NO,3,3,0,NO))!=RET_YES) { aaNote(0,"eelle %s %s",arets,filename); return ret; }
- if((ret=aaFileStreamOffsetSet(fh,12))!=RET_YES) { aaFileStreamDestroy(fh);  return ret;  }
- if((ret=aaFileStreamRead(fh,4,ch))!=RET_YES)    { aaFileStreamDestroy(fh);  return ret;  }
+ if((ret=aaFileStreamOffsetSet(fh,12))!=RET_YES) { aaFileStreamDestroy(fh);  oof; return ret;  }
+ if((ret=aaFileStreamRead(fh,4,ch))!=RET_YES)    { aaFileStreamDestroy(fh);  oof; return ret;  }
  ch[4]=NULL_CHAR;
  while(1)
   {
   if(aaStringCompare(ch,"fmt ",NULL)==RET_YES)            { break; }
-  if((ret=aaFileStreamRead(fh,4,&itmp))!=RET_YES)         { aaFileStreamDestroy(fh);  return ret;  }
-  if((ret=aaFileStreamOffsetAdjust(fh,(Q)itmp))!=RET_YES) { aaFileStreamDestroy(fh);  return ret;  }
-  if((ret=aaFileStreamRead(fh,4,ch))!=RET_YES)            { aaFileStreamDestroy(fh);  return ret;  }
+  if((ret=aaFileStreamRead(fh,4,&itmp))!=RET_YES)         { aaFileStreamDestroy(fh);  oof; return ret;  }
+  if((ret=aaFileStreamOffsetAdjust(fh,(Q)itmp))!=RET_YES) { aaFileStreamDestroy(fh);  oof; return ret;  }
+  if((ret=aaFileStreamRead(fh,4,ch))!=RET_YES)            { aaFileStreamDestroy(fh);  oof; return ret;  }
   }
- if((ret=aaFileStreamRead(fh,4,&skip))!=RET_YES) { aaFileStreamDestroy(fh); return ret;  }
+ if((ret=aaFileStreamRead(fh,4,&skip))!=RET_YES) { aaFileStreamDestroy(fh); oof; return ret;  }
  skip-=16;
- if((ret=aaFileStreamRead(fh,2,&stmp))!=RET_YES) { aaFileStreamDestroy(fh); return ret;  }
- if(stmp!=1)                                     { aaFileStreamDestroy(fh); return RET_FAILED; }
- if((ret=aaFileStreamRead(fh,2,&stmp))!=RET_YES) { aaFileStreamDestroy(fh); return ret;  }
- if(stmp>2)                                      { aaFileStreamDestroy(fh); return RET_FAILED; }
+ if((ret=aaFileStreamRead(fh,2,&stmp))!=RET_YES) { aaFileStreamDestroy(fh); oof; return ret;  }
+ if(stmp!=1)                                     { aaFileStreamDestroy(fh); oof; return RET_FAILED; }
+ if((ret=aaFileStreamRead(fh,2,&stmp))!=RET_YES) { aaFileStreamDestroy(fh); oof; return ret;  }
+ if(stmp>2)                                      { aaFileStreamDestroy(fh); oof; return RET_FAILED; }
  am.channels=stmp;
- if((ret=aaFileStreamRead(fh,4,&itmp))!=RET_YES) { aaFileStreamDestroy(fh); return ret;  }
- if(itmp!=8000&&itmp!=16000&&itmp!=11025&&itmp!=22050&&itmp!=32000&&itmp!=44100&&itmp!=48000) { aaFileStreamDestroy(fh); return RET_FAILED;  }
+ if((ret=aaFileStreamRead(fh,4,&itmp))!=RET_YES) { aaFileStreamDestroy(fh); oof; return ret;  }
+ if(itmp!=8000&&itmp!=16000&&itmp!=11025&&itmp!=24000&&itmp!=22050&&itmp!=32000&&itmp!=44100&&itmp!=48000) { aaFileStreamDestroy(fh); aaNote(0,"%i",itmp);  return RET_FAILED;  }
  am.frequency=itmp;
- if((ret=aaFileStreamRead(fh,4,&bps))!=RET_YES)   { aaFileStreamDestroy(fh); return ret;  }
+ if((ret=aaFileStreamRead(fh,4,&bps))!=RET_YES)   { aaFileStreamDestroy(fh); oof; return ret;  }
  am.bps=(B)bps;
- if((ret=aaFileStreamRead(fh,2,&align))!=RET_YES) { aaFileStreamDestroy(fh); return ret;  }
- if(align!=1&&align!=2&&align!=4&&align!=6)       { aaFileStreamDestroy(fh); return RET_FAILED; } // shuldnt it be, align!=8 not align!=6
- if((ret=aaFileStreamRead(fh,2,&stmp))!=RET_YES)  { aaFileStreamDestroy(fh); return ret;  }
- if(stmp!=32&&stmp!=16&&stmp!=8)                  { aaFileStreamDestroy(fh); return RET_FAILED; }
+ if((ret=aaFileStreamRead(fh,2,&align))!=RET_YES) { aaFileStreamDestroy(fh); oof; return ret;  }
+ if(align!=1&&align!=2&&align!=4&&align!=6)       { aaFileStreamDestroy(fh); oof; return RET_FAILED; } // shuldnt it be, align!=8 not align!=6
+ if((ret=aaFileStreamRead(fh,2,&stmp))!=RET_YES)  { aaFileStreamDestroy(fh); oof; return ret;  }
+ if(stmp!=32&&stmp!=16&&stmp!=8)                  { aaFileStreamDestroy(fh); oof; return RET_FAILED; }
  am.bits=stmp;
  if(skip>0)
   {
-  if((ret=aaFileStreamOffsetAdjust(fh,(G)skip))!=RET_YES) { aaFileStreamDestroy(fh); return ret;  }
+  if((ret=aaFileStreamOffsetAdjust(fh,(G)skip))!=RET_YES) { aaFileStreamDestroy(fh); oof; return ret;  }
   }
 
  aaAudioModeSet(&am,am.frequency,am.bits,am.channels);
  ///appLog(0,F32,0,"1am=%i,%i,%i",am.frequency,am.bits,am.channels);
- if((ret=aaAudioModeIsValid(&am))!=YES)           { aaFileStreamDestroy(fh); return RET_FAILED;  }
+ if((ret=aaAudioModeIsValid(&am))!=YES)           { aaFileStreamDestroy(fh); oof;  return RET_FAILED;  }
  ///appLog(0,F32,0,"3am=%i,%i,%i %i,%i,%i",am.frequency,am.bits,am.channels,am.rate,am.bps,am.mode);
  //if(aaAudioModeCopy(audiomode,&am)!=YES) oof;
  //aaAudioModeSet(audiomode,48000,16,1);
 
- if((ret=aaFileStreamRead(fh,4,ch))!=RET_YES)     { aaFileStreamDestroy(fh); return ret;  }
+ if((ret=aaFileStreamRead(fh,4,ch))!=RET_YES)     { aaFileStreamDestroy(fh); oof; return ret;  }
  while(1)
   {
   if(aaStringCompare(ch,"data",NULL)==RET_YES) { break; }
-  if((ret=aaFileStreamRead(fh,4,&itmp))!=RET_YES)         { aaFileStreamDestroy(fh); return ret;  }
-  if((ret=aaFileStreamOffsetAdjust(fh,(G)itmp))!=RET_YES) { aaFileStreamDestroy(fh); return ret;  }
-  if((ret=aaFileStreamRead(fh,4,ch))!=RET_YES)            { aaFileStreamDestroy(fh); return ret;  }
+  if((ret=aaFileStreamRead(fh,4,&itmp))!=RET_YES)         { aaFileStreamDestroy(fh); oof;  return ret;  }
+  if((ret=aaFileStreamOffsetAdjust(fh,(G)itmp))!=RET_YES) { aaFileStreamDestroy(fh); oof;  return ret;  }
+  if((ret=aaFileStreamRead(fh,4,ch))!=RET_YES)            { aaFileStreamDestroy(fh); oof; return ret;  }
   }
- if((ret=aaFileStreamRead(fh,4,&itmp))!=RET_YES)    { aaFileStreamDestroy(fh); return ret;  }
+ if((ret=aaFileStreamRead(fh,4,&itmp))!=RET_YES)    { aaFileStreamDestroy(fh); oof; return ret;  }
  aaFileStreamStatus(fh,&fs);
- if((ret=aaMemoryAllocate((VP)&mem,itmp))!=RET_YES) { aaFileStreamDestroy(fh); return ret;  }
+ if((ret=aaMemoryAllocate((VP)&mem,itmp))!=RET_YES) { aaFileStreamDestroy(fh); oof; return ret;  }
  aaMemoryNameSet(mem,"wavitm");
- if((ret=aaFileStreamRead(fh,itmp,mem))!=RET_YES)   { aaFileStreamDestroy(fh); aaMemoryRelease(mem); return ret;  }
+ if((ret=aaFileStreamRead(fh,itmp,mem))!=RET_YES)   { aaFileStreamDestroy(fh); aaMemoryRelease(mem); oof; return ret;  }
  wav->samples=itmp/align;
  aaFileStreamDestroy(fh);
  wav->ptr=mem;
@@ -79938,7 +80079,11 @@ u8       PCM unsigned 8-bit
    od=od+(todo*wav->a_mode.bps);
    //aaLog(-555,"... %i",todo);
    }
-  wav->offset%=wav->samples;
+  if(wav->offset>=wav->samples)
+   {
+   wav->play_count++;
+   wav->offset%=wav->samples;
+   }
 
   }
  return RET_YES;
@@ -79980,12 +80125,18 @@ u8       PCM unsigned 8-bit
  ///aaDebugf("off data=%i",off);
  aaMemoryCopy(&hdr[off],4,"data");  off+=4;
  *(HP)&hdr[off]=0;                  off+=4;
- ///aaDebugf("off d=%i mof=%i",off,wavwriter->mun.offset);
+ /*
  if(wavwriter->mun.offset!=0) oof;
  aaMemoryCopy(&wavwriter->mun.mem[wavwriter->mun.offset],off,hdr);
  wavwriter->mun.offset+=off;
  wavwriter->mun.used=off;
  wavwriter->bytes=wavwriter->mun.used;
+ */
+ if(wavwriter->mun.used!=0) oof;
+ aaMemoryCopy(&wavwriter->mun.mem[wavwriter->mun.used],off,hdr);
+ wavwriter->mun.used=off;
+ wavwriter->bytes=wavwriter->mun.used;
+
  return RET_YES;
  }
 
@@ -80039,9 +80190,9 @@ u8       PCM unsigned 8-bit
   {
   if((ret=aaMemoryUnitReAllocate(&wavwriter->mun,wavwriter->mun.bytes+bytes+_128K))!=YES) { oops; }
   }
- aaMemoryCopy(&wavwriter->mun.mem[wavwriter->mun.offset],bytes,data);
- wavwriter->mun.offset+=bytes;
- wavwriter->mun.used=wavwriter->mun.offset;
+
+ aaMemoryCopy(&wavwriter->mun.mem[wavwriter->mun.used],bytes,data);
+ wavwriter->mun.used+=bytes;
  wavwriter->bytes=wavwriter->mun.used;
  wavwriter->samples+=samples;
  bytes=(wavwriter->am.channels*(wavwriter->am.bits/8))*wavwriter->samples;
@@ -82258,6 +82409,7 @@ typedef struct _FILE_STANDARD_INFO {
   if(rot[0]=='/') {  aaStringCopyf(rot,"%s%s",sp.current_dir,rot);   }
   }
  else  {  aaStringCopyf(rot,"%s",sp.current_dir);  }
+ aaStringReplaceChar(rot,0,BSLASH_CHAR,FSLASH_CHAR);
  ret=aaFileFolderCreate(rot);
  if(ret) {}
  c=1;
@@ -82321,6 +82473,9 @@ typedef struct _FILE_STANDARD_INFO {
   if(rot[0]=='/') {  aaStringCopyf(rot,"%s%s",sp.current_dir,rot);   }
   }
  else  {  aaStringCopyf(rot,"%s",sp.current_dir);  }
+
+ //aaDebugf("rot=%s",rot);//
+ aaStringReplaceChar(rot,0,BSLASH_CHAR,FSLASH_CHAR);
  c=1;
  for(l=0;l<levels;l++) { c=c*mul;  }
  if(mul==10) { aaStringCopyf(fmt,"%%0%ii",levels); }
@@ -82360,10 +82515,11 @@ typedef struct _FILE_STANDARD_INFO {
     {
     //aaDebugf("folder del %s = %s",txt,ret_string[ret]);
     }
-
    txt[off]='/';
    }
   }
+ aaFileFolderDelete("%s",rot);
+ //aaDebugf("rot=%s",rot);//
  //aaFileFolderCreate(rot);
  return RET_YES;
  }
@@ -89083,7 +89239,7 @@ typedef struct _FILE_STANDARD_INFO {
  B ret;
  _aa_jsonobject*jsonp;
  va_list argptr;
- B txt[_32K+_8K];
+ B txt[_128K+_8K];
  H sl;
  #ifdef aa_VERSION
  aa_ZIAG(__FUNCTION__);
@@ -89484,7 +89640,7 @@ typedef struct _FILE_STANDARD_INFO {
    }
   if(jsonstatus->decode_success!=YES)
    {
-   ///aaNote(0,"decoder yield %i",__LINE__);
+  //aaNote(0,"decoder yield %i",__LINE__);
    return RET_FAILED;
    }
   break;
@@ -89778,7 +89934,11 @@ typedef struct _FILE_STANDARD_INFO {
    pos+=pot+1; s=pos; if(aaStringFindChar(&str[pos],0,&pot,DQUOTE_CHAR,YES,0,YES)!=YES) { break; }
    pos+=pot+1; e=pos-1;
    sl=e-s;
-   if(sl>=sizeof(htmlarg->cls)) { aaLog(-555,"b sl=%i max=%i",sl,sizeof(htmlarg->cls));  break; }
+   if(sl>=sizeof(htmlarg->cls))
+    {
+    aaLog(-555,"b sl=%i max=%i",sl,sizeof(htmlarg->cls));
+    break;
+    }
    aaStringNCopy(htmlarg->cls,&str[s],sl,YES);
    htmlarg->parm|=HTML_ARG_PARM_CLASS;
    break;
@@ -90953,8 +91113,8 @@ oof;
  B show;
  H ix,ok,oldbits;
  N dp;
- B str[_1K];
- B val[_1K];
+ B str[_4K];
+ B val[_4K];
  _jsonline*jsonlinea;
  _jsonline*jsonlineb;
  #ifdef aa_VERSION
@@ -92758,7 +92918,7 @@ oof;
  aaStringCopyf(cd->url,"%s",str32k.buf);
  websocketclient->stage=10;
  websocketclient->cd=cd;
- //appLog(0,F32,0,"connecting wock client");
+ ///appLog(3,"connecting wock client to [%s]",host);
 
  return RET_YES;
  }
@@ -92821,7 +92981,7 @@ oof;
    if((ret=aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status))!=YES) { oops; }
  ///  appLog(0,F32,0,"%i %i %i",websocketclient->call.status.is_ready,websocketclient->call.status.is_connected,websocketclient->call.status.is_closed);
    if(websocketclient->call.status.is_connected!=YES) { break; }
-//   if(websocketclient->call.status.is_ready!=YES) { break; }
+   if(websocketclient->call.status.is_ready!=YES) { break; }
    //if(0) { appLog(0,F32,0,"websocketclient connected, %i url=%s ",websocketclient->call.status.extra_bytes,cd->url); }
    websocketclient->stage=20;
    break;
@@ -92853,6 +93013,7 @@ oof;
    aaNetTcpCallStatus(websocketclient->call.handle,&websocketclient->call.status);
    if(websocketclient->call.status.is_closed)
     {
+ //   aaDebugf("ws closed");
     //appLog(0,F32,0,"30 iscl %s",cd->url);
     websocketclient->stage=23;
     break;
@@ -92860,6 +93021,7 @@ oof;
    if((ret=aaNetWebsocketYield(&cd->wock))!=YES) { oops;  }
    if(cd->wock.is_failure)
     {
+    //aaDebugf("ws failure");
     //appLog(0,F32,0,"line=%i failure a %s",__LINE__,cd->wock.fail_reason,cd->url);
     websocketclient->stage=23;
     break;
@@ -92870,11 +93032,13 @@ oof;
     websocketclient->stage=23;
     break;
     }
+//    aaDebugf("%i %i %i",websocketclient->call.status.is_connected,websocketclient->call.status.is_ready,websocketclient->call.status.is_closed);
    if(cd->wock.is_open!=YES)                     { break; }
    if(0) { aaDebugf("Websocket websocketclient handshaked and open on %s",cd->wock.url); }
    //if(0) { appLog(0,F32,0,"Websocket websocketclient handshaked and open on %s",cd->wock.url); }
    //aaDebugf("websocketclient wock open");
    cd->is_ready=YES;
+   if(0) { aaDebugf("websocketclientyield is ready"); }
    websocketclient->stage=1500;
    break;
 

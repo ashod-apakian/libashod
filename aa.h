@@ -346,6 +346,8 @@
 
 
 /*-----------------------------------------------------------------------*/
+ B appLog                              (H what,VP fmt,...);
+/*-----------------------------------------------------------------------*/
 
  structure { u32 len; u8 buf[257];    } _strqk;
  structure { u32 len; u8 buf[513];    } _strhk;
@@ -1393,7 +1395,7 @@
  u8p mem;
  H bytes;
  H used;
- H offset;
+ ///H offset;
  }
  _memoryunit;
 
@@ -1447,15 +1449,15 @@
  B aaMemorySort                        (VP mem,H entries,H entrybytes,VP usrdata,B(*proc)(VP,H,H,VP,VP,VP,NP));
  B aaMemoryCompareProc                 (VP mem,H entries,H entrybytes,VP usrdata,VP itema,VP itemb,NP dif);
  B aaMemoryOrderSort                   (VP mem,H entries,H stride,H offset,H size,B issigned,B des,HP order);
+ B aaMemoryWorkingSetSizeSet           (H minbytes,H maxbytes);
+ B aaMemoryWorkingSetFlush             (V);
+ B aaMemoryStackSizeGet                (HP bytes);
  B aaMemoryUnitAllocate                (_memoryunit*memoryunit,H bytes);
  B aaMemoryUnitReAllocate              (_memoryunit*memoryunit,H bytes);
  B aaMemoryUnitMake                    (_memoryunit*memoryunit,H bytes);
  B aaMemoryUnitNameSet                 (_memoryunit*memoryunit,VP fmt,...);
  B aaMemoryUnitNameGet                 (_memoryunit*memoryunit,VP name);
  B aaMemoryUnitRelease                 (_memoryunit*memoryunit);
- B aaMemoryWorkingSetSizeSet           (H minbytes,H maxbytes);
- B aaMemoryWorkingSetFlush             (V);
- B aaMemoryStackSizeGet                (HP bytes);
 
 
 
@@ -2684,6 +2686,9 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B aaQueStrap                          (H handle,H bytes,VP data);
  B aaQueStrapf                         (H handle,VP fmt,...);
 
+ B aaQueDuplexStatus                   (_queunit*ique,_queunit*oque);
+ B aaQueDuplexIo                       (_queunit*ique,_queunit*oque,H flag,H bytes,VP data);
+
 
 /*-----------------------------------------------------------------------*/
 
@@ -3761,7 +3766,6 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  H frame_done;
  Q rcve_pkts_total;
  Q xmit_pkts_total;
-
  Q ping_xmit_last_ms;
  Q pong_xmit_last_ms;
  Q ping_rcve_last_ms;
@@ -5999,6 +6003,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  _audiomode a_mode;
  B user_data[64];
  BP ptr;
+ H play_count;
  }
  _wav;
 
@@ -6734,7 +6739,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  H tag_hash;
  B tag[129];
  B id[513];
- B cls[513];
+ B cls[_1K];
  B src[_2K];
  B href[_8K];
  B style[_4K];
@@ -6974,6 +6979,7 @@ VP aaf                                (VP buf,H off,VP fmt,...);
  B oc;
  B ff;
  H bytes;
+ ///H extra;
  }
  _websockethdr;
 
